@@ -1,0 +1,198 @@
+/* =========================================================================
+   paper.css — تصميم ورقة التحضير (A4) — مطابق للنموذج المعتمد
+   ========================================================================= */
+
+.paper{ --navy:#16295C; --navy-d:#0E1C41; --red:#C8102E;
+  --ink:#111827; --line:#1E3A78; --soft:#EAF0FA; --soft2:#F5F8FD;
+  --bar-h:11mm; --pad:7mm;
+  display:flex; flex-direction:column; align-items:center; gap:8mm; }
+
+.page{
+  position:relative; width:210mm; height:297mm; background:#fff; overflow:hidden;
+  font-family:"Cairo","Segoe UI",Tahoma,Arial,sans-serif; color:var(--ink);
+  display:flex; flex-direction:column;
+  box-shadow:0 10px 30px rgba(16,32,80,.16); border-radius:2px;
+}
+
+/* ---------- الشريطان العلوي والسفلي ---------- */
+.pg-top,.pg-bot{
+  position:relative; flex:0 0 var(--bar-h); background:var(--navy);
+  display:flex; align-items:center; justify-content:center; overflow:hidden; color:#fff;
+}
+.pg-top::before,.pg-top::after,.pg-bot::before,.pg-bot::after{
+  content:""; position:absolute; top:-20%; height:140%; width:26mm; background:var(--red);
+}
+.pg-top::before,.pg-bot::before{ right:-6mm; transform:skewX(-22deg); }
+.pg-top::after ,.pg-bot::after { left:-6mm;  transform:skewX(-22deg); }
+.pg-top .slash,.pg-bot .slash{
+  position:absolute; top:-20%; height:140%; width:2.4mm; background:#fff; transform:skewX(-22deg);
+}
+.pg-top .s1{ right:16mm } .pg-top .s2{ right:21mm }
+.pg-top .s3{ left:16mm }  .pg-top .s4{ left:21mm }
+.pg-bot .s1{ right:16mm } .pg-bot .s2{ right:21mm }
+.pg-bot .s3{ left:16mm }  .pg-bot .s4{ left:21mm }
+
+.ribbon{ position:relative; z-index:2; font-weight:800; font-size:5.2mm; letter-spacing:.5px;
+  display:flex; align-items:center; gap:3mm; }
+.ribbon b{ color:#fff; font-weight:800 }
+.ribbon .brace{ color:#fff; opacity:.9; font-weight:400 }
+
+.pg-bot .fmeta{ position:relative; z-index:2; display:flex; align-items:center; gap:4mm;
+  font-size:3.4mm; font-weight:600; letter-spacing:.3px; }
+.pg-bot .fmeta .sep{ opacity:.55 }
+.pg-bot .fmeta .ic{ opacity:.9 }
+
+/* ---------- جسم الصفحة ---------- */
+.pg-main{ position:relative; flex:1 1 auto; padding:4mm var(--pad) 3mm; display:flex;
+  flex-direction:column; min-height:0; z-index:2; }
+
+/* خلفيات باهتة */
+.wm{ position:absolute; z-index:0; pointer-events:none; }
+.wm-circ{ top:0; left:0; width:62mm; height:52mm; opacity:.12 }
+.wm-logo{ top:24mm; left:50%; transform:translateX(-50%); width:70mm; opacity:.05 }
+
+/* ---------- ترويسة الهوية ---------- */
+.head{ display:grid; grid-template-columns:24mm 1fr 62mm; align-items:center; gap:3mm; }
+.head .logo{ width:23mm; height:23mm; display:flex; align-items:center; justify-content:center }
+.head .logo img{ width:100%; height:100%; object-fit:contain }
+.head .titles{ text-align:center }
+.head .titles h1{ margin:0; font-size:9mm; font-weight:800; color:var(--navy); line-height:1.05 }
+.head .titles .pgno{ margin-top:.6mm; font-size:3.9mm; font-weight:700; color:var(--navy); opacity:.9 }
+.head .org{ text-align:left; line-height:1.5 }
+.head .org .o1{ font-size:5.4mm; font-weight:800; color:var(--navy) }
+.head .org .o2{ font-size:3.9mm; font-weight:700; color:var(--red) }
+.head .org .o3{ font-size:3.6mm; font-weight:700; color:var(--navy); display:flex;
+  justify-content:flex-start; align-items:center; gap:2mm; direction:rtl }
+.head .org .o3::after{ content:""; width:6mm; height:.7mm; background:var(--red); border-radius:1mm }
+
+.lesson-title{ margin:2.4mm 0 2.6mm; text-align:center; font-size:5.6mm; font-weight:800; color:var(--navy) }
+.lesson-title span{ color:var(--red) }
+
+/* ---------- شريط المعلومات ---------- */
+.strip{ display:flex; gap:1.6mm; align-items:stretch; margin-bottom:2mm }
+.strip .cellb{ flex:0 0 auto; border:.45mm solid var(--line); border-radius:2.2mm; background:#fff;
+  padding:1.4mm 2.4mm; display:flex; align-items:center; gap:1.8mm; min-height:9mm }
+.strip .cellb .ico{ width:7mm; height:7mm; border-radius:1.6mm; background:var(--soft);
+  color:var(--navy); display:flex; align-items:center; justify-content:center; flex:0 0 auto }
+.strip .cellb .lab{ font-size:3.1mm; font-weight:700; color:var(--navy); line-height:1.25 }
+.strip .cellb .val{ font-size:3.4mm; font-weight:800; color:var(--ink); line-height:1.25 }
+.strip .cellb.stack{ flex-direction:row }
+.strip .cellb.stack .txt{ display:flex; flex-direction:column }
+.strip .grow{ flex:1 1 auto }
+.strip .dateline{ flex:1 1 auto; display:flex; align-items:center; gap:2mm }
+.strip .dateline .dots{ flex:1; border-bottom:.4mm dotted #6b7ba8; height:1px; margin-bottom:1mm }
+
+/* ---------- صفوف المادة / الصف / القسم ---------- */
+.rows{ display:flex; flex-direction:column; gap:1.4mm; margin-bottom:2.6mm }
+.rowline{ display:flex; align-items:stretch; gap:1.6mm; height:7.6mm }
+.rowline .tag{ flex:0 0 26mm; background:var(--navy); color:#fff; border-radius:2.2mm;
+  display:flex; align-items:center; justify-content:space-between; padding:0 2.4mm;
+  font-size:3.5mm; font-weight:800 }
+.rowline .tag .ic{ opacity:.95 }
+.rowline .val{ flex:1 1 auto; border:.45mm solid var(--line); border-radius:2.2mm; background:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:3.7mm; font-weight:700 }
+
+/* ---------- منطقة التدفق ---------- */
+.flow{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:2.4mm; overflow:hidden }
+.flow > *{ flex:0 0 auto }          /* لا تنكمش اللوحات — الامتلاء يفتح صفحة جديدة */
+
+/* ---------- اللوحات ---------- */
+.panel{ border:.45mm solid var(--line); border-radius:2.6mm; background:#fff; overflow:hidden;
+  display:flex; flex-direction:column; break-inside:avoid }
+.panel > .ph{ background:var(--navy); color:#fff; display:flex; align-items:center;
+  justify-content:space-between; padding:1.4mm 2.6mm; font-size:3.8mm; font-weight:800; gap:2mm }
+.panel > .ph .t{ flex:1 1 auto; text-align:right }
+.panel > .ph .ic{ opacity:.95; flex:0 0 auto }
+.panel > .pb{ padding:2.2mm 2.6mm; font-size:3.35mm; line-height:1.65; flex:1 1 auto }
+.panel.red{ border-color:var(--red) }
+.panel.red > .ph{ background:#fff; color:var(--red); border-bottom:.4mm solid var(--red);
+  justify-content:center; gap:2mm }
+.panel.red > .ph .t{ text-align:center; flex:0 0 auto }
+.panel.red > .pb{ text-align:center; font-weight:700; color:#3a1116 }
+
+.trio{ display:grid; grid-template-columns:repeat(3,1fr); gap:2.4mm; align-items:stretch }
+.trio > .panel{ height:100% }
+
+/* ---------- عناصر مرقّمة (عرض الدرس) ---------- */
+.items{ display:flex; flex-direction:column; gap:2mm }
+.item{ display:grid; grid-template-columns:6.2mm 1fr; gap:2mm; align-items:start }
+.item .n{ width:6.2mm; height:6.2mm; border-radius:50%; background:var(--red); color:#fff;
+  font-size:3.3mm; font-weight:800; display:flex; align-items:center; justify-content:center;
+  margin-top:.4mm; flex:0 0 auto }
+.item h4{ margin:0 0 .6mm; font-size:3.7mm; font-weight:800; color:var(--navy) }
+.item p{ margin:0 0 .8mm }
+.item ul{ margin:.4mm 0 .8mm; padding-inline-start:4.6mm }
+.item li{ margin-bottom:.5mm }
+.item li::marker{ color:var(--red) }
+
+/* الشكل التوضيحي داخل عرض الدرس */
+.figbox{ float:left; width:74mm; margin:0 3mm 2mm 0; border:.45mm solid var(--line);
+  border-radius:2.4mm; overflow:hidden; background:#fff }
+.figbox .fh{ background:var(--navy); color:#fff; font-size:3.4mm; font-weight:800;
+  padding:1.2mm 2mm; text-align:center }
+.figbox .fi{ padding:1.6mm; display:flex; align-items:center; justify-content:center; background:#fff }
+.figbox .fi img{ max-width:100%; max-height:52mm; object-fit:contain }
+.figbox .fi.empty{ height:34mm; color:#93a2c4; font-size:3.2mm }
+
+/* ---------- الجداول ---------- */
+table.tbl{ width:100%; border-collapse:collapse; font-size:3.1mm; margin:1mm 0 }
+table.tbl th{ background:var(--navy); color:#fff; font-weight:800; padding:1.1mm 1.4mm;
+  border:.35mm solid var(--line); text-align:center }
+table.tbl td{ padding:1mm 1.4mm; border:.35mm solid #9AABD0; text-align:center }
+table.tbl tbody tr:nth-child(even) td{ background:var(--soft2) }
+table.tbl td.fill{ color:#9aa8c6; letter-spacing:1px }
+
+/* ---------- مجموعات الأهداف ---------- */
+.groups{ display:flex; flex-direction:column; gap:1.4mm }
+.groups .g > b{ color:var(--red); font-size:3.4mm; font-weight:800 }
+.groups ul{ margin:.5mm 0 0; padding-inline-start:4.6mm }
+.groups li{ margin-bottom:.4mm }
+.groups li::marker{ color:var(--navy) }
+
+/* ---------- قوائم ---------- */
+ul.plain{ margin:0; padding-inline-start:4.6mm }
+ul.plain li{ margin-bottom:.7mm }
+ul.plain li::marker{ color:var(--red) }
+
+/* ---------- قائمة تأشير ---------- */
+.check{ list-style:none; margin:0; padding:0 }
+.check li{ display:flex; align-items:flex-start; gap:1.8mm; margin-bottom:1.2mm }
+.check li .box{ flex:0 0 auto; width:3.4mm; height:3.4mm; border:.4mm solid var(--navy);
+  border-radius:.7mm; margin-top:.9mm }
+.check li .num{ flex:0 0 auto; width:4.4mm; height:4.4mm; border-radius:50%; background:var(--red);
+  color:#fff; font-size:2.7mm; font-weight:800; display:flex; align-items:center;
+  justify-content:center; margin-top:.3mm }
+
+/* ---------- أسئلة التقويم ---------- */
+.qa .q{ margin-bottom:2mm }
+.qa .q .lab{ color:var(--red); font-weight:800; font-size:3.3mm }
+.qa .q .txt{ font-size:3.3mm; margin:.3mm 0 1mm }
+.qa .ansbox{ border:.4mm solid var(--line); border-radius:6mm; padding:.9mm 2.4mm;
+  font-size:3.2mm; font-weight:700; text-align:center; color:var(--navy); background:#fff }
+.qa .ansline{ border-bottom:.4mm dotted #6b7ba8; height:4.4mm }
+
+/* ---------- أسطر فارغة ---------- */
+.lines{ display:flex; flex-direction:column; gap:4.2mm; padding:1mm 0 }
+.lines i{ display:block; border-bottom:.4mm dotted #6b7ba8 }
+
+/* ---------- التوقيعات ---------- */
+.signs{ display:grid; grid-template-columns:repeat(3,1fr); gap:2.4mm; margin-top:1mm }
+.signs .s{ border:.45mm solid var(--line); border-radius:2.4mm; overflow:hidden }
+.signs .s b{ display:block; background:var(--soft); color:var(--navy); font-size:3.3mm;
+  padding:1mm; text-align:center }
+.signs .s i{ display:block; height:11mm }
+
+/* ---------- التحرير ---------- */
+[contenteditable="true"]:focus{ outline:.4mm dashed var(--red); outline-offset:1mm; border-radius:1mm }
+
+/* ---------- الطباعة ---------- */
+@page{ size:A4; margin:0 }
+@media print{
+  html,body{ background:#fff !important; margin:0 !important; padding:0 !important }
+  body > *:not(#resultWrap){ display:none !important }
+  #resultWrap > *:not(.paper){ display:none !important }
+  .paper{ display:block !important; gap:0 !important; transform:none !important; width:auto !important }
+  .page{ box-shadow:none !important; border-radius:0 !important; break-after:page; page-break-after:always }
+  .page:last-child{ break-after:auto; page-break-after:auto }
+  *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important }
+}

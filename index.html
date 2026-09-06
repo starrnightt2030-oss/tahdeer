@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10275B">
+<meta name="description" content="محضّر الدروس — يحوّل صفحات الكتاب إلى تحضير احترافي وفق النموذج المعتمد">
+<title>محضّر الدروس</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="محضّر الدروس">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/paper.css">
+</head>
+<body>
+
+<!-- ======================= الشريط العلوي ======================= -->
+<header class="topbar">
+  <div class="brand">
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+    </div>
+    <div class="brand-txt">
+      <strong>محضّر الدروس</strong>
+      <span>تحضير احترافي وفق النموذج المعتمد</span>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button id="btnInstall" class="icon-btn" hidden title="تثبيت التطبيق">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 3v10.5l3.5-3.5 1.4 1.4L12 17.3 7.1 11.4l1.4-1.4L12 13.5V3zM5 19h14v2H5z"/></svg>
+    </button>
+    <button id="btnSettings" class="icon-btn" title="الإعدادات">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m9.4 4a7.4 7.4 0 0 1-.1 1.2l2 1.6-1.9 3.3-2.4-1a7.6 7.6 0 0 1-2 1.2l-.4 2.6h-3.8l-.4-2.6a7.6 7.6 0 0 1-2-1.2l-2.4 1L2 14.8l2-1.6a7.4 7.4 0 0 1 0-2.4L2 9.2l2-3.3 2.4 1a7.6 7.6 0 0 1 2-1.2l.4-2.6h3.8l.4 2.6c.7.3 1.4.7 2 1.2l2.4-1 1.9 3.3-2 1.6c.1.4.1.8.1 1.2"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ======================= 1. بيانات الحصة ======================= -->
+  <section class="card" id="cardMeta">
+    <div class="card-head"><span class="num">1</span><h2>بيانات الحصة</h2></div>
+    <div class="grid" id="metaGrid"></div>
+    <label class="field full">
+      <span>ملاحظات للمحضّر <em>(اختياري)</em></span>
+      <input type="text" id="metaHint" placeholder="مثال: ركّز على التطبيق العملي، أو الدرس يُشرح في حصتين">
+    </label>
+  </section>
+
+  <!-- ======================= 2. ملف الدرس ======================= -->
+  <section class="card" id="cardFiles">
+    <div class="card-head"><span class="num">2</span><h2>ملف الدرس</h2></div>
+    <div class="drop" id="dropZone">
+      <svg viewBox="0 0 24 24" width="34" height="34"><path fill="currentColor" d="M12 3 7 8h3v7h4V8h3zM5 18h14v2H5z"/></svg>
+      <p><strong>اضغط لاختيار الملف</strong> أو اسحبه هنا</p>
+      <small>PDF أو صور من الكتاب (يمكن اختيار أكثر من صورة)</small>
+      <input type="file" id="fileInput" accept="application/pdf,image/*" multiple hidden>
+    </div>
+    <div class="pick-row">
+      <button class="ghost" id="btnPick">اختيار من الملفات</button>
+      <button class="ghost" id="btnCamera">تصوير الصفحة</button>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" multiple hidden>
+    </div>
+    <ul class="files" id="fileList"></ul>
+  </section>
+
+  <!-- ======================= 3. التوليد ======================= -->
+  <section class="card generate">
+    <button id="btnGenerate" class="primary big">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+      توليد التحضير
+    </button>
+    <p class="status" id="status"></p>
+  </section>
+
+  <!-- ======================= 4. المعاينة ======================= -->
+  <section id="resultWrap" hidden>
+    <div class="toolbar">
+      <button class="primary" id="btnPrint">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M7 3h10v4H7zm12 6H5a2 2 0 0 0-2 2v6h4v4h10v-4h4v-6a2 2 0 0 0-2-2m-4 10H9v-4h6z"/></svg>
+        طباعة / حفظ PDF
+      </button>
+      <button class="secondary" id="btnWord">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm-1 7V3.5L18.5 9z"/></svg>
+        تنزيل Word
+      </button>
+      <button class="ghost" id="btnRegen">إعادة التوليد</button>
+      <span class="hint-edit">يمكنك التعديل على أي نص في المعاينة قبل الحفظ</span>
+    </div>
+    <div class="paper-scroll"><div id="paper" class="paper"></div></div>
+  </section>
+
+</main>
+
+<!-- ======================= الإعدادات ======================= -->
+<div class="sheet-back" id="settingsBack" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <h3>الإعدادات</h3>
+      <button class="icon-btn" id="btnCloseSettings" title="إغلاق">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <label class="field">
+        <span>مفتاح Gemini (مجاني)</span>
+        <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off" dir="ltr" style="text-align:left">
+      </label>
+      <p class="note">
+        احصل على مفتاح مجاني من <bdi dir="ltr"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI&nbsp;Studio</a></bdi>
+        ثم اضغط <bdi dir="ltr">Create API key</bdi> وانسخ المفتاح هنا.
+        المفتاح يُحفظ على هاتفك فقط ولا يُرسل لأي جهة غير <bdi dir="ltr">Google</bdi>.
+      </p>
+      <label class="field">
+        <span>النموذج</span>
+        <select id="modelSel"></select>
+      </label>
+      <hr>
+      <h4>بيانات النموذج المعتمد</h4>
+      <div class="grid" id="idGrid"></div>
+      <div id="logoRow"></div>
+      <button class="primary" id="btnSaveSettings">حفظ</button>
+      <button class="ghost danger" id="btnReset">مسح البيانات المحفوظة</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="spinner"></div>
+  <p id="overlayMsg">جارٍ العمل…</p>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/schema.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/zip.js"></script>
+<script src="js/docx.js"></script>
+<script src="js/pages.js"></script>
+<script src="js/gemini.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

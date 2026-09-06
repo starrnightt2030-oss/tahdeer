@@ -1,0 +1,140 @@
+/* =========================================================================
+   app.css — واجهة التطبيق (خارج الورقة)
+   ========================================================================= */
+:root{
+  --navy:#16295C; --navy-2:#1E3A78; --red:#C8102E;
+  --bg:#F2F5FA; --card:#FFFFFF; --ink:#141B2E; --mut:#6B7891;
+  --line:#DCE3EF; --ok:#0E8A5F;
+  --r:16px; --sh:0 2px 10px rgba(20,40,90,.07);
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
+[hidden]{ display:none !important }
+html,body{ margin:0; padding:0 }
+body{
+  font-family:"Cairo","Segoe UI",Tahoma,Arial,sans-serif; background:var(--bg); color:var(--ink);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+h2,h3,h4{ margin:0 }
+button{ font-family:inherit; cursor:pointer; border:0; background:none; color:inherit }
+a{ color:var(--navy-2) }
+
+/* ---------- الشريط العلوي ---------- */
+.topbar{
+  position:sticky; top:0; z-index:40; background:var(--navy); color:#fff;
+  padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  box-shadow:0 2px 14px rgba(10,25,70,.28);
+}
+.topbar::after{ content:""; position:absolute; inset:auto 0 0; height:3px; background:var(--red) }
+.brand{ display:flex; align-items:center; gap:10px; min-width:0 }
+.brand .mark{ width:34px; height:34px; border-radius:10px; background:rgba(255,255,255,.14);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto }
+.brand-txt{ display:flex; flex-direction:column; min-width:0 }
+.brand-txt strong{ font-size:16px; font-weight:800; line-height:1.25 }
+.brand-txt span{ font-size:11.5px; opacity:.78; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.topbar-actions{ display:flex; gap:6px }
+.icon-btn{ width:38px; height:38px; border-radius:11px; display:flex; align-items:center;
+  justify-content:center; background:rgba(255,255,255,.12); color:#fff; transition:.15s }
+.icon-btn:active{ transform:scale(.94) }
+#btnInstall{ background:var(--red) }
+
+/* ---------- التخطيط ---------- */
+.wrap{ max-width:820px; margin:0 auto; padding:14px 14px 40px; display:flex; flex-direction:column; gap:12px }
+.card{ background:var(--card); border-radius:var(--r); padding:14px; box-shadow:var(--sh) }
+.card-head{ display:flex; align-items:center; gap:10px; margin-bottom:12px }
+.card-head .num{ width:26px; height:26px; border-radius:9px; background:var(--navy); color:#fff;
+  font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center }
+.card-head h2{ font-size:16px; font-weight:800; color:var(--navy) }
+
+/* ---------- الحقول ---------- */
+.grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px }
+.field{ display:flex; flex-direction:column; gap:5px }
+.field.full{ margin-top:10px }
+.field > span{ font-size:12.5px; font-weight:700; color:var(--mut) }
+.field > span em{ font-style:normal; font-weight:500; opacity:.75 }
+.field input,.field select,.field textarea{
+  width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:12px;
+  font-family:inherit; font-size:14.5px; background:#fff; color:var(--ink); transition:.15s;
+}
+.field input:focus,.field select:focus{ outline:none; border-color:var(--navy-2);
+  box-shadow:0 0 0 3px rgba(30,58,120,.1) }
+.field input.err{ border-color:var(--red) }
+
+/* ---------- منطقة الرفع ---------- */
+.drop{ border:2px dashed #C3CFE4; border-radius:14px; padding:22px 14px; text-align:center;
+  color:var(--mut); background:#FAFCFF; transition:.15s; cursor:pointer }
+.drop.over{ border-color:var(--navy-2); background:#EEF3FC; color:var(--navy) }
+.drop p{ margin:8px 0 3px; font-size:14px; color:var(--ink) }
+.drop small{ font-size:12px }
+.pick-row{ display:flex; gap:8px; margin-top:10px }
+.pick-row button{ flex:1 }
+.files{ list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:7px }
+.files li{ display:flex; align-items:center; gap:9px; background:#F5F8FD; border:1px solid var(--line);
+  border-radius:11px; padding:8px 10px; font-size:13px }
+.files li .nm{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.files li .sz{ color:var(--mut); font-size:11.5px }
+.files li .rm{ color:var(--red); font-weight:800; padding:0 4px }
+.files li img{ width:34px; height:34px; object-fit:cover; border-radius:7px }
+
+/* ---------- الأزرار ---------- */
+.primary,.secondary,.ghost{ padding:11px 16px; border-radius:12px; font-weight:700; font-size:14.5px;
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:.15s }
+.primary{ background:var(--navy); color:#fff }
+.primary:active{ transform:translateY(1px) }
+.secondary{ background:var(--red); color:#fff }
+.ghost{ background:#EEF2F9; color:var(--navy); border:1.5px solid var(--line) }
+.ghost.danger{ color:var(--red) }
+button:disabled{ opacity:.5; pointer-events:none }
+.big{ width:100%; padding:15px; font-size:16px; border-radius:14px }
+.card.generate{ padding:12px }
+.status{ margin:9px 0 0; text-align:center; font-size:13px; color:var(--mut); min-height:18px }
+.status.err{ color:var(--red); font-weight:700 }
+
+/* ---------- شريط أدوات النتيجة ---------- */
+.toolbar{ position:sticky; top:64px; z-index:30; background:var(--card); border-radius:var(--r);
+  padding:10px; box-shadow:var(--sh); display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  margin-bottom:12px }
+.toolbar .hint-edit{ font-size:11.5px; color:var(--mut); flex:1 1 100%; text-align:center }
+
+/* ---------- عارض الورقة ---------- */
+#resultWrap{ margin-top:4px }
+.paper-scroll{ overflow-x:auto; padding-bottom:6px }
+.paper{ transform-origin:top center }
+
+/* ---------- الإعدادات ---------- */
+.sheet-back{ position:fixed; inset:0; z-index:60; background:rgba(12,22,48,.5);
+  display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(2px) }
+.sheet{ width:100%; max-width:560px; max-height:88vh; overflow:auto; background:var(--bg);
+  border-radius:22px 22px 0 0; padding:16px 16px calc(20px + env(safe-area-inset-bottom));
+  animation:up .22s ease }
+@keyframes up{ from{ transform:translateY(28px); opacity:.4 } }
+.sheet-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px }
+.sheet-head h3{ font-size:17px; font-weight:800; color:var(--navy) }
+.sheet-head .icon-btn{ background:#E6EBF5; color:var(--navy) }
+.sheet-body{ display:flex; flex-direction:column; gap:12px }
+.sheet-body h4{ font-size:14px; color:var(--navy); font-weight:800 }
+.sheet-body hr{ border:0; border-top:1px solid var(--line); margin:2px 0 }
+.note{ font-size:12.5px; color:var(--mut); line-height:1.7; margin:0;
+  background:#EAF0FA; border-radius:11px; padding:10px 12px }
+.logo-row{ display:flex; align-items:center; gap:10px }
+.logo-row .prev{ width:56px; height:56px; border:1.5px solid var(--line); border-radius:12px;
+  background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden }
+.logo-row .prev img{ width:100%; height:100%; object-fit:contain }
+
+/* ---------- التحميل والتنبيهات ---------- */
+.overlay{ position:fixed; inset:0; z-index:70; background:rgba(244,247,252,.93);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px }
+.overlay p{ font-size:14.5px; font-weight:700; color:var(--navy); margin:0; text-align:center; padding:0 24px }
+.spinner{ width:46px; height:46px; border:4px solid #D8E1F0; border-top-color:var(--navy);
+  border-radius:50%; animation:sp .8s linear infinite }
+@keyframes sp{ to{ transform:rotate(360deg) } }
+.toast{ position:fixed; z-index:80; bottom:calc(22px + env(safe-area-inset-bottom)); left:50%;
+  transform:translateX(-50%); background:var(--navy); color:#fff; padding:11px 18px;
+  border-radius:12px; font-size:13.5px; font-weight:600; box-shadow:0 8px 24px rgba(10,25,70,.3);
+  max-width:88vw; text-align:center }
+.toast.bad{ background:var(--red) }
+
+@media (max-width:520px){
+  .brand-txt span{ display:none }
+  .toolbar{ top:58px }
+}
