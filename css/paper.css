@@ -185,14 +185,51 @@ ul.plain li::marker{ color:var(--red) }
 /* ---------- التحرير ---------- */
 [contenteditable="true"]:focus{ outline:.4mm dashed var(--red); outline-offset:1mm; border-radius:1mm }
 
+/* =========================================================================
+   محتوى بلغة أجنبية → اتجاه المحتوى من اليسار (الترويسة والبيانات تبقى عربية)
+   ========================================================================= */
+.page.ltr-body .panel > .pb{ direction:ltr; text-align:left }
+.page.ltr-body .panel.red > .pb{ text-align:center }
+.page.ltr-body .figbox{ float:right; margin:0 0 2mm 3mm }
+.page.ltr-body .figbox .fh{ direction:rtl }
+.page.ltr-body table.tbl{ direction:ltr }
+.page.ltr-body table.tbl th{ text-align:center }
+.page.ltr-body table.tbl td{ text-align:left }
+.page.ltr-body table.tbl td:first-child{ text-align:center }
+.page.ltr-body .item h4,
+.page.ltr-body .item p,
+.page.ltr-body .qa .q .lab,
+.page.ltr-body .qa .q .txt{ text-align:left }
+.page.ltr-body .groups .g > b{ direction:ltr }
+.page.ltr-body ul.plain li::marker,
+.page.ltr-body .item li::marker{ color:var(--red) }
+
 /* ---------- الطباعة ---------- */
 @page{ size:A4; margin:0 }
 @media print{
-  html,body{ background:#fff !important; margin:0 !important; padding:0 !important }
-  body > *:not(#resultWrap){ display:none !important }
-  #resultWrap > *:not(.paper){ display:none !important }
-  .paper{ display:block !important; gap:0 !important; transform:none !important; width:auto !important }
-  .page{ box-shadow:none !important; border-radius:0 !important; break-after:page; page-break-after:always }
+  html,body{ background:#fff !important; margin:0 !important; padding:0 !important;
+    width:auto !important; height:auto !important; overflow:visible !important }
+
+  /* كل ما هو خارج الورقة يُخفى بالاسم — لا بالبنية */
+  .topbar, .card, .toolbar, .sheet-back, .overlay, .toast,
+  .pick-row, .files, .status{ display:none !important }
+
+  /* سلسلة الحاويات التي تحتوي الورقة تُحيَّد بالكامل */
+  .wrap, #resultWrap, .paper-scroll{
+    display:block !important; margin:0 !important; padding:0 !important;
+    max-width:none !important; width:auto !important; gap:0 !important;
+    background:#fff !important; box-shadow:none !important; overflow:visible !important }
+
+  #resultWrap[hidden]{ display:none !important }
+
+  .paper{ display:block !important; gap:0 !important; width:auto !important;
+    height:auto !important; transform:none !important; overflow:visible !important }
+
+  .page{ box-shadow:none !important; border-radius:0 !important;
+    break-inside:avoid; page-break-inside:avoid;
+    break-after:page; page-break-after:always }
   .page:last-child{ break-after:auto; page-break-after:auto }
+
+  [contenteditable]{ outline:none !important }
   *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important }
 }

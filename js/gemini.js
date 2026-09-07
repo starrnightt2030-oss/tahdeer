@@ -24,6 +24,7 @@ const S_GRID = { type: 'ARRAY', items: { type: 'ARRAY', items: { type: 'STRING' 
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
+    contentLang: S_STR,
     lessonTitle: S_STR,
     objectives: {
       type: 'OBJECT',
@@ -85,15 +86,36 @@ const RESPONSE_SCHEMA = {
       }
     }
   },
-  propertyOrdering: ['lessonTitle', 'objectives', 'prerequisites', 'resources', 'strategies',
-    'warmup', 'content', 'drills', 'activities', 'assessment', 'warning', 'homework', 'figures']
+  propertyOrdering: ['contentLang', 'lessonTitle', 'objectives', 'prerequisites', 'resources',
+    'strategies', 'warmup', 'content', 'drills', 'activities', 'assessment', 'warning',
+    'homework', 'figures']
 };
 
 /* ---------- التعليمات ---------- */
-function buildPrompt(meta, pageCount) {
-  return `أنت موجّه تربوي خبير في إعداد تحضير دروس التخصصات الفنية (كهرباء وإلكترونيات) في مركز تدريب معتمد.
+function langRule(meta) {
+  if (meta.lang === 'ar') {
+    return 'اكتب كل محتوى التحضير بالعربية الفصحى، وضع contentLang = "ar".';
+  }
+  if (meta.lang === 'en') {
+    return 'Write ALL prep content in English (objectives, lesson steps, questions, activities, ' +
+      'drills, warning, homework), and set contentLang = "en".';
+  }
+  return 'حدّد لغة المحتوى تلقائيًا:\n' +
+    '  • إن كانت المادة لغة أجنبية (إنجليزية/فرنسية…) أو كان نص الدرس المرفق بتلك اللغة، ' +
+    'فاكتب **كل محتوى التحضير بلغة الدرس نفسها** — الأهداف وعرض الدرس والأسئلة والأنشطة ' +
+    'والتدريبات والتنبيه والواجب — وضع contentLang = "en" (أو رمز اللغة المناسب).\n' +
+    '  • غير ذلك اكتب المحتوى بالعربية الفصحى وضع contentLang = "ar".\n' +
+    '  • في كل الحالات: بيانات الحصة وعناوين أقسام النموذج تبقى كما هي، لا تترجمها ولا تعد كتابتها.';
+}
 
-مرفق ${toArabicDigits(pageCount)} صورة لصفحات درس من كتاب مدرسي. اقرأها كاملة بعناية — النصوص والجداول والأشكال والأمثلة المحلولة — ثم حوّلها إلى **تحضير درس احترافي** يُطبع على نموذج معتمد.
+function buildPrompt(meta, pageCount) {
+  const subj = meta.subject || 'التخصص';
+  return `أنت موجّه تربوي خبير في إعداد تحضير الدروس، ومتخصص في مادة «${subj}».
+
+مرفق ${toArabicDigits(pageCount)} صورة لصفحات درس من كتاب مدرسي. اقرأها كاملة بعناية — النصوص والجداول والأشكال والأمثلة والتدريبات — ثم حوّلها إلى **تحضير درس احترافي** يُطبع على نموذج معتمد.
+
+## لغة المحتوى
+${langRule(meta)}
 
 بيانات الحصة كما أدخلها المعلّم:
 • المادة: ${meta.subject || '—'}   • الصف: ${meta.grade || '—'}   • القسم: ${meta.dept || '—'}
@@ -103,7 +125,8 @@ ${meta.hint ? '• توجيه من المعلّم: ' + meta.hint : ''}
 
 الحقول المطلوبة:
 1. lessonTitle — عنوان الدرس كما ورد في الكتاب، مختصر ودقيق.
-2. objectives — أهداف سلوكية تبدأ بـ«أن يَـ…» وقابلة للقياس: cognitive (٣–٤)، skill (٢–٣)، affective (١–٢).
+2. objectives — أهداف سلوكية قابلة للقياس: cognitive (٣–٤)، skill (٢–٣)، affective (١–٢).
+   بالعربية تبدأ بـ«أن يَـ…»، وبالإنجليزية تبدأ بـ«Students will be able to …».
 3. prerequisites — ٢–٣ متطلبات سابقة يجب أن يتقنها الطالب.
 4. resources — ٣–٥ وسائل ومعينات مطلوبة فعليًا لهذا الدرس.
 5. strategies — ٢–٤ استراتيجيات تدريس مناسبة لطبيعة المحتوى.
@@ -116,17 +139,25 @@ ${meta.hint ? '• توجيه من المعلّم: ' + meta.hint : ''}
    أدرج الأمثلة المحلولة والقوانين والرموز والقيم والوحدات كما وردت في الدرس بالضبط.
 8. drills — تدريب صفّي سريع: instruction (جملة تعليمات)، columns (اسم عمود واحد أو اثنين للمطلوب)، rows (٣–٤ صفوف من حالات حقيقية من الدرس). لا تضع عمودًا للإجابة؛ النموذج يضيفه فارغًا للطالب.
 9. activities — ٣ أنشطة صفية تطبيقية قصيرة، كل نشاط في سطر.
-10. assessment.questions — سؤالان: label مثل «سؤال قراءة» و«سؤال عكسي»، question بصيغته الكاملة بالأرقام، وanswer اتركه فارغًا دائمًا.
+10. assessment.questions — سؤالان، وanswer اتركه فارغًا دائمًا.
 11. warning — تنبيه واحد (سطران) عن خطأ شائع أو اشتراط سلامة في هذا الدرس تحديدًا.
-12. homework — تكليفان محدّدان بقيم حقيقية من الدرس.
+12. homework — تكليفان محدّدان من الدرس.
 13. figures — الأشكال والرسوم التوضيحية المفيدة الموجودة في الصفحات المرفقة (من صفر إلى ٢).
-    لكل شكل: caption عنوان عربي قصير، page رقم الصورة المرفقة (يبدأ من ١)،
+    لكل شكل: caption عنوان قصير بلغة المحتوى، page رقم الصورة المرفقة (يبدأ من ١)،
     box_2d إحداثيات الإطار [y1, x1, y2, x2] بقيم من ٠ إلى ١٠٠٠ نسبةً لأبعاد تلك الصورة.
-    اختر الشكل الأهم لفهم الدرس (رسم/مخطط/دائرة)، ولا تختر فقرات نصية أو ترويسات.
+    اختر الشكل الأهم لفهم الدرس (رسم/مخطط/دائرة/صورة توضيحية)، ولا تختر فقرات نصية أو ترويسات.
+
+## أسئلة الكتاب — قاعدة مهمة
+إن كان الدرس المرفق يحتوي أسئلة أو تدريبات مطبوعة (Comprehension Questions ·
+Vocabulary in Context · Think & Discuss · أسئلة التقويم · تمارين)، فاستخدمها **بنصّها الحرفي**
+كما وردت في الكتاب في حقول assessment.questions وdrills وhomework، ووزّعها بينها بما يناسب كل حقل.
+لا تُعِد صياغتها ولا تترجمها. اجعل label لكل سؤال هو عنوان القسم الذي جاء منه في الكتاب.
+ولا تؤلّف أسئلة من عندك إلا إذا لم يوجد في الدرس ما يكفي — وحينها فقط ألّف ما ينقص.
 
 قواعد إلزامية:
 - كل المحتوى مستخرج من الدرس المرفق نفسه — ممنوع الكلام العام الذي يصلح لأي درس.
-- عربية فصحى تربوية، والمصطلحات الأجنبية بين قوسين عند أول ذكر.
+- إن كان المحتوى بالعربية: فصحى تربوية والمصطلحات الأجنبية بين قوسين عند أول ذكر.
+  وإن كان بالإنجليزية: إنجليزية سليمة مناسبة لمستوى الصف، بلا أي جُمل عربية داخل المحتوى.
 - **كل الأرقام والقيم والقوانين والجداول تُكتب بالأرقام اللاتينية (0 1 2 3)** مع وحداتها كما هي
   (‎27 kΩ ±5%‎, ×10³, 4.7 kΩ). لا تستخدم الأرقام العربية الهندية (٠١٢٣) داخل أي قيمة أو معادلة أو جدول.
 - لا تترك حقلًا فارغًا ولا تكتب «حسب الحاجة» أو «يحددها المعلّم».
@@ -223,5 +254,6 @@ function normalize(d) {
   if (d.drills && (!Array.isArray(d.drills.columns) || !d.drills.columns.length)) d.drills.columns = ['المطلوب'];
   if (d.assessment && !Array.isArray(d.assessment.questions)) d.assessment = null;
   d.figures = Array.isArray(d.figures) ? d.figures.slice(0, 2) : [];
+  d.contentLang = /^en/i.test(String(d.contentLang || '')) ? 'en' : 'ar';
   return d;
 }

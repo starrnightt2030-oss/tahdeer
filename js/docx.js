@@ -12,6 +12,17 @@ const xesc = s => String(s == null ? '' : s)
 const HEX = c => String(c || '#000000').replace('#', '').toUpperCase();
 const xmlHead = s => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + s;
 
+const OBJ_LABEL = {
+  ar: { cognitive: 'الأهداف المعرفية:', skill: 'الأهداف المهارية:', affective: 'الأهداف الوجدانية:' },
+  en: { cognitive: 'Knowledge objectives:', skill: 'Skill objectives:', affective: 'Attitude objectives:' }
+};
+
+/* اتجاه محتوى التحضير: يصبح true عندما تكون لغة المحتوى أجنبية */
+let CONTENT_LTR = false;
+
+/* فقرة/نص محتوى — تتبع لغة المحتوى (الترويسة والبيانات تبقى عربية RTL) */
+function cPara(text, o) { return wPara(text, Object.assign({ ltr: CONTENT_LTR }, o || {})); }
+
 /* تثبيت اتجاه المقاطع اللاتينية والرموز العلمية داخل Word بعلامات LRM */
 function wordBidi(text) {
   const s = String(text == null ? '' : text);
@@ -30,19 +41,21 @@ function wRun(text, o = {}) {
     (o.b ? '<w:b/><w:bCs/>' : '') +
     (o.color ? `<w:color w:val="${HEX(o.color)}"/>` : '') +
     `<w:sz w:val="${Math.round((o.size || 10.5) * 2)}"/><w:szCs w:val="${Math.round((o.size || 10.5) * 2)}"/>` +
-    '<w:rtl/></w:rPr>';
-  return wordBidi(text).split('\n').map((p, i) =>
+    (o.ltr ? '<w:rtl w:val="0"/>' : '<w:rtl/>') + '</w:rPr>';
+  const body = o.ltr ? String(text == null ? '' : text) : wordBidi(text);
+  return body.split('\n').map((p, i) =>
     `<w:r>${rpr}${i ? '<w:br/>' : ''}<w:t xml:space="preserve">${xesc(p)}</w:t></w:r>`).join('');
 }
 
 /* ترتيب العناصر داخل w:pPr و w:tcPr إلزامي حسب مخطط OOXML */
 function wPara(text, o = {}) {
+  const align = o.align || (o.ltr ? 'left' : 'right');
   const ppr = '<w:pPr>' +
     (o.shade ? `<w:shd w:val="clear" w:color="auto" w:fill="${HEX(o.shade)}"/>` : '') +
-    '<w:bidi/>' +
+    (o.ltr ? '<w:bidi w:val="0"/>' : '<w:bidi/>') +
     `<w:spacing w:before="${o.before == null ? 20 : o.before}" w:after="${o.after == null ? 20 : o.after}" w:line="264" w:lineRule="auto"/>` +
-    (o.ind ? `<w:ind w:right="${o.ind}"/>` : '') +
-    `<w:jc w:val="${o.align || 'right'}"/>` +
+    (o.ind ? (o.ltr ? `<w:ind w:left="${o.ind}"/>` : `<w:ind w:right="${o.ind}"/>`) : '') +
+    `<w:jc w:val="${align}"/>` +
     '</w:pPr>';
   return `<w:p>${ppr}${wRun(text, o)}</w:p>`;
 }
@@ -65,7 +78,7 @@ function wTable(rows, o = {}) {
     .map(s => `<w:${s} w:val="single" w:sz="6" w:space="0" w:color="${bc}"/>`).join('');
   const grid = (o.grid && o.grid.length ? o.grid : [o.w || CONTENT_W])
     .map(w => `<w:gridCol w:w="${Math.round(w)}"/>`).join('');
-  return '<w:tbl><w:tblPr><w:bidiVisual/>' +
+  return '<w:tbl><w:tblPr>' + (o.ltr ? '' : '<w:bidiVisual/>') +
     `<w:tblW w:w="${o.w || CONTENT_W}" w:type="dxa"/>` +
     `<w:tblBorders>${bd}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr>` +
     `<w:tblGrid>${grid}</w:tblGrid>` +
@@ -86,37 +99,40 @@ const box = inner => wTable([`<w:tr>${wCell(inner, { w: CONTENT_W, vAlign: 'top'
   { grid: [CONTENT_W] });
 
 const bullets = arr => (arr && arr.length ? arr : ['—'])
-  .map(t => wPara('•  ' + t, { ind: 110 }));
+  .map(t => cPara('•  ' + t, { ind: 110 }));
 
 function dataTable(columns, rows, navy, extraCol) {
   const cols = extraCol ? columns.concat([extraCol]) : columns;
   const first = 600;
   const rest = Math.floor((CONTENT_W - first) / cols.length);
   const grid = [first].concat(cols.map(() => rest));
-  const hr = '<w:tr>' + wCell(wPara('م', { b: true, color: '#FFFFFF', align: 'center', size: 9.5 }), { w: first, shade: navy }) +
-    cols.map(c => wCell(wPara(c, { b: true, color: '#FFFFFF', align: 'center', size: 9.5 }), { w: rest, shade: navy })).join('') + '</w:tr>';
+  const L = CONTENT_LTR;
+  const num = i => L ? String(i) : toArabicDigits(i);
+  const hr = '<w:tr>' + wCell(wPara(L ? '#' : 'م', { b: true, color: '#FFFFFF', align: 'center', size: 9.5, ltr: L }), { w: first, shade: navy }) +
+    cols.map(c => wCell(wPara(c, { b: true, color: '#FFFFFF', align: 'center', size: 9.5, ltr: L }), { w: rest, shade: navy })).join('') + '</w:tr>';
   const body = rows.map((r, i) => {
     const cells = Array.isArray(r) ? r : [r];
-    return '<w:tr>' + wCell(wPara(toArabicDigits(i + 1), { align: 'center', size: 9.5 }), { w: first, shade: i % 2 ? '#F3F6FC' : null }) +
-      cols.map((c, ci) => wCell(wPara(extraCol && ci === cols.length - 1 ? '' : (cells[ci] || ''),
-        { align: 'right', size: 9.5 }), { w: rest, vAlign: 'top', shade: i % 2 ? '#F3F6FC' : null })).join('') + '</w:tr>';
+    return '<w:tr>' + wCell(wPara(num(i + 1), { align: 'center', size: 9.5, ltr: L }), { w: first, shade: i % 2 ? '#F3F6FC' : null }) +
+      cols.map((c, ci) => wCell(cPara(extraCol && ci === cols.length - 1 ? '' : (cells[ci] || ''),
+        { size: 9.5 }), { w: rest, vAlign: 'top', shade: i % 2 ? '#F3F6FC' : null })).join('') + '</w:tr>';
   });
-  return wTable([hr, ...body], { grid });
+  return wTable([hr, ...body], { grid, ltr: CONTENT_LTR });
 }
 
 function contentItems(items, navy, red) {
   const out = [];
   (items || []).forEach((it, i) => {
-    out.push(wPara(toArabicDigits(i + 1) + '.  ' + (it.heading || ''), { b: true, color: navy, size: 11, before: 60 }));
-    if (it.body) out.push(wPara(it.body, { ind: 110 }));
+    const n = CONTENT_LTR ? String(i + 1) : toArabicDigits(i + 1);
+    out.push(cPara(n + '.  ' + (it.heading || ''), { b: true, color: navy, size: 11, before: 60 }));
+    if (it.body) out.push(cPara(it.body, { ind: 110 }));
     if (it.bullets && it.bullets.length) out.push(...bullets(it.bullets));
     if (it.table && it.table.columns) {
-      if (it.table.title) out.push(wPara(it.table.title, { b: true, color: red, size: 10, ind: 110 }));
+      if (it.table.title) out.push(cPara(it.table.title, { b: true, color: red, size: 10, ind: 110 }));
       out.push(dataTable(it.table.columns, it.table.rows || [], navy));
       out.push(gap(60));
     }
   });
-  if (!out.length) out.push(wPara('—'));
+  if (!out.length) out.push(cPara('—'));
   return out;
 }
 
@@ -141,7 +157,8 @@ function buildDocumentXml(data, meta, id) {
   /* البيانات */
   b += head('البيانات الأساسية', navy);
   const pairs = [];
-  META_FIELDS.forEach(f => pairs.push([f.label, f.key === 'date' ? (meta.dateText || meta.date || '') : (meta[f.key] || '')]));
+  META_FIELDS.filter(f => !f.noPrint)
+    .forEach(f => pairs.push([f.label, f.key === 'date' ? (meta.dateText || meta.date || '') : (meta[f.key] || '')]));
   const cw = Math.floor(CONTENT_W / 6), vw = Math.floor(CONTENT_W / 3) - cw;
   const rows = [];
   for (let i = 0; i < pairs.length; i += 3) {
@@ -162,10 +179,10 @@ function buildDocumentXml(data, meta, id) {
     (objSec.groups || []).forEach(g => {
       const it = (data.objectives[g.key] || []).filter(Boolean);
       if (!it.length) return;
-      inner.push(wPara('الأهداف ال' + g.label + ':', { b: true, color: red, size: 10.5, before: 40 }));
+      inner.push(cPara(OBJ_LABEL[CONTENT_LTR ? 'en' : 'ar'][g.key] || g.label, { b: true, color: red, size: 10.5, before: 40 }));
       inner.push(...bullets(it));
     });
-    b += head(objSec.label, navy) + box(inner.length ? inner : [wPara('—')]) + gap();
+    b += head(objSec.label, navy) + box(inner.length ? inner : [cPara('—')]) + gap();
   }
 
   /* الثلاثي */
@@ -173,7 +190,7 @@ function buildDocumentXml(data, meta, id) {
     .forEach(([k, l]) => { if (data[k] && data[k].length) b += head(l, navy) + box(bullets(data[k])) + gap(70); });
 
   /* التمهيد */
-  if (data.warmup) b += head('التمهيد والتهيئة', navy) + box([wPara(data.warmup)]) + gap();
+  if (data.warmup) b += head('التمهيد والتهيئة', navy) + box([cPara(data.warmup)]) + gap();
 
   /* عرض الدرس */
   b += head('عرض الدرس / خطوات سير الدرس', navy) + box(contentItems(data.content, navy, red)) + gap();
@@ -181,22 +198,22 @@ function buildDocumentXml(data, meta, id) {
   /* تدريبات */
   if (data.drills && data.drills.rows && data.drills.rows.length) {
     const inner = [];
-    if (data.drills.instruction) inner.push(wPara(data.drills.instruction, { b: true, size: 10 }));
-    inner.push(dataTable(data.drills.columns || ['المطلوب'], data.drills.rows, navy, 'الإجابة'));
+    if (data.drills.instruction) inner.push(cPara(data.drills.instruction, { b: true, size: 10 }));
+    inner.push(dataTable(data.drills.columns || ['المطلوب'], data.drills.rows, navy, CONTENT_LTR ? 'Answer' : 'الإجابة'));
     b += head('تدريبات سريعة', navy) + box(inner) + gap();
   }
 
   /* أنشطة */
   if (data.activities && data.activities.length)
-    b += head('أنشطة صفية', navy) + box(data.activities.map(t => wPara('☐  ' + t, { ind: 110 }))) + gap(70);
+    b += head('أنشطة صفية', navy) + box(data.activities.map(t => cPara('☐  ' + t, { ind: 110 }))) + gap(70);
 
   /* التقويم */
   if (data.assessment && data.assessment.questions && data.assessment.questions.length) {
     const inner = [];
     data.assessment.questions.forEach(q => {
-      inner.push(wPara((q.label || 'سؤال') + ':', { b: true, color: red, size: 10.5, before: 40, after: 0 }));
-      inner.push(wPara(q.question || '', { ind: 110, after: 0 }));
-      inner.push(wPara('الإجابة: ' + '.'.repeat(70), { size: 9.5, color: '#8A97B4', ind: 110 }));
+      inner.push(cPara((q.label || (CONTENT_LTR ? 'Question' : 'سؤال')) + ':', { b: true, color: red, size: 10.5, before: 40, after: 0 }));
+      inner.push(cPara(q.question || '', { ind: 110, after: 0 }));
+      inner.push(cPara((CONTENT_LTR ? 'Answer: ' : 'الإجابة: ') + '.'.repeat(70), { size: 9.5, color: '#8A97B4', ind: 110 }));
     });
     b += head('التقويم', navy) + box(inner) + gap();
   }
@@ -205,13 +222,13 @@ function buildDocumentXml(data, meta, id) {
   if (data.warning)
     b += wTable([`<w:tr>${wCell([
       wPara('تنبيه', { b: true, color: red, align: 'center', size: 11, after: 0 }),
-      wPara(data.warning, { align: 'center', b: true })
+      cPara(data.warning, { align: 'center', b: true })
     ], { w: CONTENT_W, shade: '#FDF2F3' })}</w:tr>`], { border: red, grid: [CONTENT_W] }) + gap();
 
   /* الواجب */
   if (data.homework && data.homework.length)
     b += head('الواجب المنزلي', navy) +
-      box(data.homework.map((t, i) => wPara(toArabicDigits(i + 1) + ')  ' + t, { ind: 110 }))) + gap(70);
+      box(data.homework.map((t, i) => cPara((CONTENT_LTR ? String(i + 1) : toArabicDigits(i + 1)) + ')  ' + t, { ind: 110 }))) + gap(70);
 
   /* ملاحظات المعلم */
   b += head('ملاحظات المعلم', navy) +
@@ -272,6 +289,7 @@ const SETTINGS_XML = xmlHead('<w:settings xmlns:w="http://schemas.openxmlformats
 
 function buildDocx(data, meta, id) {
   id = id || IDENTITY_DEFAULT;
+  CONTENT_LTR = (data && data.contentLang === 'en');
   const CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml';
   const files = [
     { name: '[Content_Types].xml', data: xmlHead(

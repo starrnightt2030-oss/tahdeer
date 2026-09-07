@@ -25,6 +25,14 @@ function bidiHtml(s) {
   });
 }
 
+/* لغة محتوى التحضير الحالي — تضبطها renderDocument */
+let R_LTR = false;
+const RL = { num: n => (R_LTR ? String(n) : toArabicDigits(n)) };
+const R_OBJ_LABEL = {
+  ar: { cognitive: 'معرفية', skill: 'مهارية', affective: 'وجدانية' },
+  en: { cognitive: 'Knowledge', skill: 'Skills', affective: 'Attitude' }
+};
+
 /* ---------- الوصول لقيمة داخل الكائن عبر مسار ---------- */
 function getPath(obj, path) {
   return path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
@@ -62,7 +70,7 @@ class Pager {
 
   newPage() {
     const id = this.id, meta = this.meta, data = this.data;
-    const page = el('div', 'page');
+    const page = el('div', 'page' + (data.contentLang === 'en' ? ' ltr-body' : ''));
 
     /* الشريط العلوي */
     const top = el('div', 'pg-top');
@@ -238,7 +246,8 @@ function groupsNode(sec, val, path) {
   (sec.groups || []).forEach(g => {
     const items = (val && val[g.key]) || [];
     if (!items.length) return;
-    const d = el('div', 'g', `<b>${escHtml(g.label)}:</b>`);
+    const lbl = (R_OBJ_LABEL[R_LTR ? 'en' : 'ar'][g.key]) || g.label;
+    const d = el('div', 'g', `<b>${escHtml(lbl)}:</b>`);
     d.appendChild(listNode(items, `${path}.${g.key}`));
     box.appendChild(d);
   });
@@ -250,7 +259,7 @@ function checklistNode(arr, path, numbered) {
   const ul = el('ul', 'check');
   (arr && arr.length ? arr : ['—']).forEach((t, i) => {
     const li = el('li');
-    if (numbered) li.appendChild(el('span', 'num', toArabicDigits(i + 1)));
+    if (numbered) li.appendChild(el('span', 'num', RL.num(i + 1)));
     li.appendChild(el('span', 'box'));
     li.appendChild(ed('span', 'tx', t, path ? `${path}.${i}` : null));
     ul.appendChild(li);
@@ -261,9 +270,10 @@ function checklistNode(arr, path, numbered) {
 function qaNode(val, path) {
   const box = el('div', 'qa');
   const qs = (val && val.questions) || [];
-  (qs.length ? qs : [{ label: 'سؤال', question: '—' }]).forEach((q, i) => {
+  const dfl = R_LTR ? 'Question' : 'سؤال';
+  (qs.length ? qs : [{ label: dfl, question: '—' }]).forEach((q, i) => {
     const d = el('div', 'q');
-    d.appendChild(ed('div', 'lab', (q.label || 'سؤال') + ':', `${path}.questions.${i}.label`));
+    d.appendChild(ed('div', 'lab', (q.label || dfl) + ':', `${path}.questions.${i}.label`));
     d.appendChild(ed('div', 'txt', q.question || '', `${path}.questions.${i}.question`));
     if (q.answer) d.appendChild(ed('div', 'ansbox', q.answer, `${path}.questions.${i}.answer`));
     else d.appendChild(el('div', 'ansline'));
@@ -280,14 +290,14 @@ function drillsNode(val, path) {
   const t = el('table', 'tbl');
   const thead = el('thead');
   const tr = el('tr');
-  tr.appendChild(el('th', '', 'م'));
+  tr.appendChild(el('th', '', R_LTR ? '#' : 'م'));
   cols.forEach(c => tr.appendChild(el('th', '', bidiHtml(c))));
-  tr.appendChild(el('th', '', 'الإجابة'));
+  tr.appendChild(el('th', '', R_LTR ? 'Answer' : 'الإجابة'));
   thead.appendChild(tr); t.appendChild(thead);
   const tb = el('tbody');
   (rows.length ? rows : [['—']]).forEach((r, i) => {
     const row = el('tr');
-    row.appendChild(el('td', '', toArabicDigits(i + 1)));
+    row.appendChild(el('td', '', RL.num(i + 1)));
     const cells = Array.isArray(r) ? r : [r];
     cols.forEach((c, ci) => {
       const td = ed('td', '', cells[ci] != null ? cells[ci] : '', `${path}.rows.${i}.${ci}`);
@@ -317,7 +327,7 @@ function tableNode(tbl, path) {
 
 function itemNode(it, idx, path) {
   const d = el('div', 'item');
-  d.appendChild(el('span', 'n', toArabicDigits(idx + 1)));
+  d.appendChild(el('span', 'n', RL.num(idx + 1)));
   const c = el('div', 'ic-body');
   if (it.heading) c.appendChild(ed('h4', '', it.heading, `${path}.heading`));
   if (it.body)    c.appendChild(ed('p', '', it.body, `${path}.body`));
@@ -329,10 +339,10 @@ function itemNode(it, idx, path) {
 
 function figureNode(fig, i) {
   const b = el('div', 'figbox');
-  b.innerHTML = `<div class="fh">${escHtml((fig && fig.caption) || 'الرسم التوضيحي')}</div>`;
+  b.innerHTML = `<div class="fh">${escHtml((fig && fig.caption) || (R_LTR ? 'Figure' : 'الرسم التوضيحي'))}</div>`;
   const fi = el('div', 'fi' + (fig && fig.src ? '' : ' empty'));
   if (fig && fig.src) fi.innerHTML = `<img src="${fig.src}" alt="">`;
-  else fi.textContent = 'مساحة الرسم التوضيحي';
+  else fi.textContent = R_LTR ? 'Figure area' : 'مساحة الرسم التوضيحي';
   b.appendChild(fi);
   return b;
 }
@@ -388,6 +398,7 @@ function flowItems(pg, sec, items, data) {
    الدالة الرئيسية
    ========================================================================= */
 function renderDocument(root, data, meta, id) {
+  R_LTR = (data && data.contentLang === 'en');
   const pg = new Pager(root, meta, id, data);
   const S = k => SECTIONS.find(s => s.key === k);
   const has = k => data[k] && (Array.isArray(data[k]) ? data[k].length : true);

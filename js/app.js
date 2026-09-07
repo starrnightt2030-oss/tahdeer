@@ -51,11 +51,19 @@ function buildMetaForm() {
   META_FIELDS.forEach(f => {
     const lab = document.createElement('label');
     lab.className = 'field';
-    lab.innerHTML = `<span>${f.label}${f.req ? '' : ' <em>(اختياري)</em>'}</span>`;
-    const inp = document.createElement('input');
-    inp.type = f.type; inp.id = 'm_' + f.key; inp.placeholder = f.ph || '';
-    if (f.remember && saved[f.key]) inp.value = saved[f.key];
-    if (f.key === 'date' && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
+    lab.innerHTML = `<span>${f.label}${(f.req || f.type === 'select') ? '' : ' <em>(اختياري)</em>'}</span>`;
+    let inp;
+    if (f.type === 'select') {
+      inp = document.createElement('select');
+      inp.innerHTML = f.options.map(o => `<option value="${o.v}">${o.t}</option>`).join('');
+      inp.value = (f.remember && saved[f.key]) || f.options[0].v;
+    } else {
+      inp = document.createElement('input');
+      inp.type = f.type; inp.placeholder = f.ph || '';
+      if (f.remember && saved[f.key]) inp.value = saved[f.key];
+      if (f.key === 'date' && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
+    }
+    inp.id = 'm_' + f.key;
     inp.addEventListener('input', () => inp.classList.remove('err'));
     lab.appendChild(inp);
     g.appendChild(lab);

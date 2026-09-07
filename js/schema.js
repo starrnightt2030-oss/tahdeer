@@ -28,7 +28,13 @@ const META_FIELDS = [
   { key: 'unit',     label: 'الوحدة',    type: 'text', ph: 'الأولى',                         remember: true  },
   { key: 'subject',  label: 'المادة',    type: 'text', ph: 'أساسيات الهندسة الكهربائية',      remember: true, req: true },
   { key: 'grade',    label: 'الصف',      type: 'text', ph: 'الصف الأول الثانوي الصناعي',      remember: true, req: true },
-  { key: 'dept',     label: 'القسم',     type: 'text', ph: 'التركيبات الكهربائية',            remember: true  }
+  { key: 'dept',     label: 'القسم',     type: 'text', ph: 'التركيبات الكهربائية',            remember: true  },
+  { key: 'lang',     label: 'لغة المحتوى', type: 'select', remember: true, noPrint: true,
+    options: [
+      { v: 'auto', t: 'تلقائي حسب المادة' },
+      { v: 'ar',   t: 'عربي' },
+      { v: 'en',   t: 'إنجليزي' }
+    ] }
 ];
 
 /* الحقول التي تظهر في شريط المعلومات العلوي (بالترتيب من اليمين) */
