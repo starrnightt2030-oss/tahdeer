@@ -222,7 +222,8 @@ html.first-land{ page:ls }
   .topbar, .tabs, .card, .toolbar, .sheet-back, .overlay, .toast,
   .pick-row, .files, .status, .wk-list, .bk, .lib-head, .lib-tools,
   .subj-list, .tiles, .les-list,
-  #screenLibrary, #screenSubject, #modePrep, #modePlan, #modeCover{ display:none !important }
+  #screenLibrary, #screenSubject, #modePrep, #modePlan, #modeCover,
+.cam-back, .les-head, .new-row{ display:none !important }
 
   /* سلسلة الحاويات التي تحتوي الورقة تُحيَّد بالكامل */
   .wrap, #resultWrap, .paper-scroll{
@@ -292,10 +293,12 @@ table.tbl.pl tbody tr:nth-child(even) td{ background:var(--soft2) }
 
 .cv-hero{ margin:26mm 0 0; text-align:center; position:relative; z-index:2 }
 .cv-hero .kicker{ font-size:4.6mm; font-weight:700; color:var(--red); letter-spacing:.4mm }
-.cv-hero .subj{ margin:4mm 0 0; font-size:13mm; font-weight:800; color:var(--navy); line-height:1.18 }
+.cv-hero .cv-title{ display:block; margin:4mm 0 0; font-size:13mm; font-weight:800;
+  color:var(--navy); line-height:1.18; text-align:center; background:none; box-shadow:none;
+  padding:0; border-radius:0 }
 .cv-hero .rule{ width:70mm; height:1.4mm; background:var(--red); border-radius:1mm; margin:6mm auto }
-.cv-hero .grade{ font-size:7mm; font-weight:800; color:var(--navy) }
-.cv-hero .dept{ margin-top:2mm; font-size:5mm; font-weight:700; color:#3c4a68 }
+.cv-hero .cv-grade{ display:block; font-size:7mm; font-weight:800; color:var(--navy); text-align:center }
+.cv-hero .cv-dept{ display:block; margin-top:2mm; font-size:5mm; font-weight:700; color:#3c4a68; text-align:center }
 
 .cv-info{ margin:26mm auto 0; display:grid; grid-template-columns:repeat(3,1fr);
   gap:4mm; position:relative; z-index:2 }
@@ -311,3 +314,22 @@ table.tbl.pl tbody tr:nth-child(even) td{ background:var(--soft2) }
   padding-bottom:2mm; position:relative; z-index:2 }
 .cv-foot .l{ flex:1; height:.5mm; background:var(--line); border-radius:1mm }
 .cv-foot .t{ font-size:3.8mm; font-weight:700; color:var(--navy) }
+
+/* =========================================================================
+   التحضير العملي — جدول العدد ومربع الرسم
+   ========================================================================= */
+.trio.two{ grid-template-columns:repeat(2,1fr) }
+
+table.tbl.pairs td{ text-align:right }
+table.tbl.pairs td.c{ text-align:center; font-weight:800; background:#F5F8FD; width:8% }
+
+.drawbox{ border:.45mm solid var(--navy); border-radius:1.2mm; overflow:hidden; background:#fff }
+.drawbox .dcap{ background:#EDF1F9; color:var(--navy); font-size:3.2mm; font-weight:700;
+  padding:1.1mm 1.6mm; border-bottom:.35mm solid var(--navy); line-height:1.5 }
+.drawbox .dbody{ min-height:48mm; display:flex; align-items:center; justify-content:center;
+  padding:1.6mm; background:
+    linear-gradient(#EEF2F9 .18mm, transparent .18mm) 0 0/100% 6mm,
+    #fff }
+.drawbox .dbody img{ max-width:100%; max-height:78mm; object-fit:contain }
+.drawbox .dbody.svgfig svg{ max-width:100%; max-height:78mm }
+.drawbox .dbody.empty{ color:#93a2c4; font-size:3.2mm }

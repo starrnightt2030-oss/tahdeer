@@ -22,10 +22,10 @@ function renderCover(root, meta, id) {
   /* العنوان الرئيسي */
   const hero = el('div', 'cv-hero');
   hero.innerHTML = '<div class="kicker">دفتر إعداد وتحضير مادة</div>';
-  hero.appendChild(ed('div', 'subj', meta.subject || '—', null));
+  hero.appendChild(ed('div', 'cv-title', meta.subject || '—', null));
   hero.appendChild(el('div', 'rule'));
-  hero.appendChild(ed('div', 'grade', meta.grade || '', null));
-  if (meta.dept) hero.appendChild(ed('div', 'dept', meta.dept, null));
+  hero.appendChild(ed('div', 'cv-grade', meta.grade || '', null));
+  if (meta.dept) hero.appendChild(ed('div', 'cv-dept', meta.dept, null));
   f.appendChild(hero);
 
   /* بطاقات البيانات */

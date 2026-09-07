@@ -271,3 +271,72 @@ button:disabled{ opacity:.5; pointer-events:none }
   padding:13px 14px; text-align:right; background:none }
 .tile-del{ flex:0 0 auto; width:44px; background:#FDECEE; color:var(--red);
   font-size:20px; font-weight:800; border-inline-start:1px solid #F6D5DA }
+
+/* أزرار الحذف والتعديل — واضحة بأسماء وأيقونات */
+.subj-acts{ display:flex; gap:8px; width:100%; flex-wrap:wrap }
+.subj-acts button{ flex:1 1 auto }
+.ghost.tiny{ display:inline-flex; align-items:center; justify-content:center; gap:6px }
+.ghost.tiny.danger{ background:#FDECEE; color:var(--red); border-color:#F6D5DA }
+.tile-del{ flex:0 0 auto; width:58px; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:3px; background:#FDECEE; color:var(--red);
+  border-inline-start:1px solid #F6D5DA; font-size:11px; font-weight:800 }
+.les-del{ width:34px; height:34px; border-radius:9px; background:#FDECEE; color:var(--red);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto }
+.les .ghost.tiny{ padding:7px 10px; font-size:12px; flex:0 0 auto }
+
+/* ---------- نافذة التأكيد الداخلية ---------- */
+.sheet.ask{ max-width:420px }
+.ask-msg{ font-size:13.5px; line-height:1.85; color:var(--ink) }
+.ask-acts{ display:flex; flex-direction:column; gap:8px; margin-top:4px }
+.ask-acts button{ width:100%; padding:12px; font-size:14px; border-radius:12px }
+.primary.danger{ background:var(--red); border-color:var(--red); color:#fff }
+
+/* حذف المادة من بطاقة المكتبة */
+.subj .sj-del{ width:34px; height:34px; border-radius:10px; background:#FDECEE; color:var(--red);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  border:1px solid #F6D5DA }
+/* أيقونة داخل زر — لا تأخذ تنسيق .ic (مربع الأيقونة الكبير) */
+.ico{ flex:0 0 auto; display:block }
+
+/* شارة نوع الدرس في قائمة الدروس */
+.les .kd{ font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px;
+  background:#EEF2F9; color:var(--navy); flex:0 0 auto }
+.les .kd.pr{ background:#FDECEE; color:var(--red) }
+.les-head{ display:flex; align-items:center; gap:8px; margin:14px 0 8px }
+.les-head h3{ font-size:13.5px; font-weight:800; color:var(--navy) }
+.les-head span{ font-size:11.5px; color:var(--mut) }
+.new-row{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap }
+.new-row button{ flex:1 1 46% }
+
+/* ---------- الكاميرا داخل التطبيق ---------- */
+body.cam-on{ overflow:hidden }
+.cam-back{ position:fixed; inset:0; z-index:80; background:#0A1226;
+  display:flex; flex-direction:column }
+.cam-top{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:calc(env(safe-area-inset-top) + 10px) 14px 10px; color:#fff }
+.cam-top span{ font-size:13px; font-weight:700; opacity:.9 }
+.cam-x, .cam-flip{ width:38px; height:38px; border-radius:11px; color:#fff;
+  background:rgba(255,255,255,.14); display:flex; align-items:center; justify-content:center }
+.cam-view{ flex:1; min-height:0; position:relative; background:#000;
+  display:flex; align-items:center; justify-content:center; overflow:hidden }
+.cam-view video{ width:100%; height:100%; object-fit:contain; background:#000 }
+.cam-view.flash::after{ content:''; position:absolute; inset:0; background:#fff; opacity:.75 }
+.cam-msg{ position:absolute; inset:auto 18px auto 18px; background:#fff; color:var(--ink);
+  border-radius:12px; padding:14px; font-size:13px; line-height:1.8; text-align:center }
+.cam-strip{ display:flex; gap:7px; overflow-x:auto; padding:9px 12px;
+  background:rgba(255,255,255,.06) }
+.cam-strip:empty{ display:none }
+.cam-th{ position:relative; flex:0 0 auto }
+.cam-th img{ width:52px; height:66px; object-fit:cover; border-radius:8px;
+  border:1.5px solid rgba(255,255,255,.35) }
+.cam-th button{ position:absolute; top:-5px; inset-inline-start:-5px; width:20px; height:20px;
+  border-radius:50%; background:var(--red); color:#fff; font-size:13px; font-weight:800;
+  line-height:1; display:flex; align-items:center; justify-content:center }
+.cam-bar{ display:flex; align-items:center; gap:12px;
+  padding:12px 14px calc(env(safe-area-inset-bottom) + 14px) }
+.cam-shot{ width:62px; height:62px; border-radius:50%; background:#fff; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 4px rgba(255,255,255,.25) }
+.cam-shot i{ width:48px; height:48px; border-radius:50%; background:var(--red); display:block }
+.cam-shot:active i{ transform:scale(.9) }
+.cam-bar .primary{ flex:1; padding:15px; font-size:14.5px; border-radius:14px }
+.cam-bar .primary:disabled{ opacity:.45 }

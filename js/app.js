@@ -3,7 +3,7 @@
    ========================================================================= */
 const LS = {
   key: 'thd.apiKey', model: 'thd.model', id: 'thd.identity',
-  meta: 'thd.meta', last: 'thd.last',
+  meta: 'thd.meta', pmeta: 'thd.pmeta', last: 'thd.last',
   plan: 'thd.plan', planRows: 'thd.planRows', cover: 'thd.cover'
 };
 const $ = s => document.querySelector(s);
@@ -94,11 +94,21 @@ function validateForm(fields, prefix, m) {
 }
 
 /* ---------------- 1) نموذج بيانات الحصة ---------------- */
+/* حقول القسم الحالي: النظري أم العملي */
+function metaFields() {
+  return (state.mode === 'prac') ? PRAC_FIELDS : META_FIELDS;
+}
+function isPrac() { return state.mode === 'prac'; }
+
 function buildMetaForm() {
   const g = $('#metaGrid');
-  const saved = store.get(LS.meta, {});
+  const saved = store.get(isPrac() ? LS.pmeta : LS.meta, {});
   g.innerHTML = '';
-  META_FIELDS.forEach(f => {
+  $('#cardMetaTitle').textContent = isPrac() ? 'بيانات جلسة التدريب' : 'بيانات الحصة';
+  $('#metaHint').placeholder = isPrac()
+    ? 'مثال: التمرين يُنفّذ في مجموعتين، أو ركّز على القياس'
+    : 'مثال: ركّز على التطبيق العملي، أو الدرس يُشرح في حصتين';
+  metaFields().forEach(f => {
     const lab = document.createElement('label');
     lab.className = 'field';
     lab.innerHTML = `<span>${f.label}${(f.req || f.type === 'select') ? '' : ' <em>(اختياري)</em>'}</span>`;
@@ -122,7 +132,7 @@ function buildMetaForm() {
 
 function readMeta() {
   const m = {};
-  META_FIELDS.forEach(f => { m[f.key] = ($('#m_' + f.key).value || '').trim(); });
+  metaFields().forEach(f => { const e = $('#m_' + f.key); if (e) m[f.key] = (e.value || '').trim(); });
   m.hint = ($('#metaHint').value || '').trim();
   if (m.date) {
     const d = new Date(m.date + 'T00:00:00');
@@ -131,15 +141,16 @@ function readMeta() {
     );
   }
   const keep = {};
-  META_FIELDS.filter(f => f.remember).forEach(f => { keep[f.key] = m[f.key]; });
-  store.set(LS.meta, keep);
+  metaFields().filter(f => f.remember).forEach(f => { keep[f.key] = m[f.key]; });
+  store.set(isPrac() ? LS.pmeta : LS.meta, keep);
   return m;
 }
 
 function validateMeta(m) {
   let ok = true;
-  META_FIELDS.filter(f => f.req).forEach(f => {
-    if (!m[f.key]) { $('#m_' + f.key).classList.add('err'); ok = false; }
+  metaFields().filter(f => f.req).forEach(f => {
+    const e = $('#m_' + f.key);
+    if (e && !m[f.key]) { e.classList.add('err'); ok = false; }
   });
   return ok;
 }
@@ -185,18 +196,20 @@ function renderFiles() {
 async function generate() {
   const meta = readMeta();
   if (!validateMeta(meta)) { setStatus('أكمل الحقول المطلوبة أولًا', true); return; }
-  if (!state.files.length) { setStatus('ارفع ملف الدرس أولًا', true); return; }
+  if (!state.files.length) {
+    setStatus(isPrac() ? 'ارفع صفحات الموضوع العملي أولًا' : 'ارفع ملف الدرس أولًا', true); return;
+  }
   const apiKey = store.get(LS.key, '');
   if (!apiKey) { setStatus('أدخل مفتاح Gemini من الإعدادات', true); openSettings(); return; }
 
   state.meta = meta;
   setStatus('');
-  busy(true, 'جارٍ تجهيز صفحات الدرس…');
+  busy(true, isPrac() ? 'جارٍ تجهيز صفحات الموضوع…' : 'جارٍ تجهيز صفحات الدرس…');
 
   try {
     state.pages = await filesToPages(state.files, m => busy(true, m));
     const data = await generateTahdeer({
-      apiKey, model: currentModel(),
+      apiKey, model: currentModel(), kind: isPrac() ? 'prac' : 'prep',
       pages: state.pages, meta, onProgress: m => busy(true, m)
     });
     busy(true, 'جارٍ قصّ الأشكال التوضيحية وتنسيق الورقة…');
@@ -204,7 +217,8 @@ async function generate() {
     state.data = data;
     await saveLesson();
     showResult();
-    toast('تم إنشاء التحضير وحفظه في المادة');
+    await draftClear();
+    toast(isPrac() ? 'تم إنشاء تحضير التدريب العملي وحفظه' : 'تم إنشاء التحضير وحفظه في المادة');
   } catch (e) {
     console.error(e);
     setStatus(e.message || 'حدث خطأ غير متوقع', true);
@@ -218,7 +232,9 @@ async function generate() {
 function showResult() {
   const wrap = $('#resultWrap');
   wrap.hidden = false;
-  const n = renderDocument($('#paper'), state.data, state.meta, state.id);
+  const n = (state.mode === 'prac')
+    ? renderPractical($('#paper'), state.data, state.meta, state.id)
+    : renderDocument($('#paper'), state.data, state.meta, state.id);
   bindEdits();
   fitPaper();
   wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -297,7 +313,8 @@ window.addEventListener('resize', () => { if (state.data) fitPaper(); });
 window.addEventListener('orientationchange', () => { if (state.data) setTimeout(fitPaper, 250); });
 
 /* ---------------- الوظائف الثلاث ---------------- */
-const MODE_TITLE = { prep: 'تحضير احترافي وفق النموذج المعتمد',
+const MODE_TITLE = { prep: 'تحضير نظري وفق النموذج المعتمد',
+  prac: 'تحضير تدريب عملي وفق النموذج المعتمد',
   plan: 'الخطة الزمنية للفصل الدراسي', cover: 'غلاف المادة' };
 
 /* مقاس الورق تحدده الصفحات المسمّاة في paper.css:
@@ -308,16 +325,23 @@ function setPageSize() { /* لا شيء — محفوظة للتوافق */ }
 
 function setMode(m, skipLoad) {
   state.mode = m;
-  ['prep', 'plan', 'cover'].forEach(k => {
+  /* النظري والعملي يتشاركان نفس الواجهة (#modePrep) بحقول مختلفة */
+  $('#modePrep').hidden = !(m === 'prep' || m === 'prac');
+  ['plan', 'cover'].forEach(k => {
     const sec = $('#mode' + k[0].toUpperCase() + k.slice(1));
     if (sec) sec.hidden = (k !== m);
   });
+  if (m === 'prep' || m === 'prac') {
+    buildMetaForm();
+    $('#cardFilesTitle').textContent = (m === 'prac') ? 'صفحات الموضوع العملي' : 'ملف الدرس';
+    state.files = []; renderFiles();
+  }
   document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
   const sub = document.querySelector('.brand-txt span');
   if (sub) sub.textContent = MODE_TITLE[m];
 
   /* أزرار شريط الأدوات حسب الوظيفة */
-  document.querySelectorAll('.only-prep').forEach(e => { e.hidden = (m !== 'prep'); });
+  document.querySelectorAll('.only-prep').forEach(e => { e.hidden = !(m === 'prep' || m === 'prac'); });
   document.querySelectorAll('.only-doc').forEach(e => { e.hidden = (m === 'cover'); });
 
   /* كل وظيفة لها معاينتها — نُخلي الورقة عند التبديل */
@@ -343,7 +367,7 @@ async function loadSection(mode) {
   if (!sub) return;
   const teacher = await DB.get('teacher', '');
 
-  if (mode === 'prep') {
+  if (mode === 'prep' || mode === 'prac') {
     /* الحقول المشتركة من المادة */
     const pre = { subject: sub.name, grade: sub.grade, dept: sub.dept, teacher };
     Object.keys(pre).forEach(k => { const e = $('#m_' + k); if (e && !e.value) e.value = pre[k] || ''; });
@@ -351,15 +375,16 @@ async function loadSection(mode) {
       const les = await DB.lesson(Lib.lessonId);
       if (les) {
         state.data = les.data; state.meta = les.meta || {};
-        META_FIELDS.forEach(f => { const e = $('#m_' + f.key); if (e && state.meta[f.key] != null) e.value = state.meta[f.key]; });
+        metaFields().forEach(f => { const e = $('#m_' + f.key); if (e && state.meta[f.key] != null) e.value = state.meta[f.key]; });
         state.files = []; renderFiles();
         showResult();
-        setStatus('درس محفوظ — عدّل ما تشاء أو اطبعه');
+        setStatus(mode === 'prac' ? 'موضوع محفوظ — عدّل ما تشاء أو اطبعه'
+                                  : 'درس محفوظ — عدّل ما تشاء أو اطبعه');
         return;
       }
     }
-    /* درس جديد: أرقام الدرس التالية تلقائيًا */
-    const ls = await DB.lessons(sub.id);
+    /* جديد: الرقم التالي داخل نفس النوع تلقائيًا */
+    const ls = (await DB.lessons(sub.id)).filter(l => (l.kind || 'prep') === mode);
     const nextNo = ls.reduce((m, l) => Math.max(m, parseInt(l.lessonNo, 10) || 0), 0) + 1;
     if ($('#m_lessonNo') && !$('#m_lessonNo').value) $('#m_lessonNo').value = nextNo;
     state.data = null; state.files = []; renderFiles();
@@ -392,10 +417,12 @@ async function loadSection(mode) {
 /* ---------------- حفظ الأقسام في المكتبة ---------------- */
 async function saveLesson() {
   if (!Lib.subject || !state.data) return;
+  const prac = (state.mode === 'prac');
   const rec = {
     subjectId: Lib.subject.id,
+    kind: prac ? 'prac' : 'prep',
     lessonNo: state.meta.lessonNo || '',
-    title: state.data.lessonTitle || '',
+    title: (prac ? state.data.topicTitle : state.data.lessonTitle) || '',
     meta: state.meta, data: state.data
   };
   if (Lib.lessonId) rec.id = Lib.lessonId;
@@ -512,9 +539,13 @@ async function printTerm() {
       renderPlan(tmp, { meta: pm, rows: planDoc.payload.rows || [] }, state.id);
       while (tmp.firstChild) paper.appendChild(tmp.firstChild);
     }
-    for (const les of lessons) {
+    /* الدروس النظرية أولًا ثم مواضيع التدريب العملي */
+    const ordered = lessons.slice().sort((a, b) =>
+      ((a.kind || 'prep') === (b.kind || 'prep')) ? 0 : ((a.kind || 'prep') === 'prep' ? -1 : 1));
+    for (const les of ordered) {
       const meta = Object.assign({ teacher }, les.meta || {});
-      renderDocument(tmp, les.data, meta, state.id);
+      if ((les.kind || 'prep') === 'prac') renderPractical(tmp, les.data, meta, state.id);
+      else renderDocument(tmp, les.data, meta, state.id);
       while (tmp.firstChild) paper.appendChild(tmp.firstChild);
     }
 
@@ -678,7 +709,7 @@ function newLesson() {
   $('#metaHint').value = '';
 
   /* الحقول المتكرّرة تبقى، والخاصة بالدرس تُخلى */
-  META_FIELDS.forEach(f => {
+  metaFields().forEach(f => {
     const inp = $('#m_' + f.key);
     if (!inp || f.remember) return;
     if (f.key === 'date') inp.value = new Date().toISOString().slice(0, 10);
@@ -693,8 +724,8 @@ function newLesson() {
 
 function doWord() {
   try {
-    const blob = (state.mode === 'plan')
-      ? buildPlanDocx(plan, state.id)
+    const blob = (state.mode === 'plan') ? buildPlanDocx(plan, state.id)
+      : (state.mode === 'prac') ? buildPracDocx(state.data, state.meta, state.id)
       : buildDocx(state.data, state.meta, state.id);
     download(blob, fileBase() + '.docx');
     toast('تم تنزيل ملف Word');
@@ -730,6 +761,8 @@ function init() {
 
   buildPlanUI();
   buildCoverUI();
+  bindCamera();
+  bindDraft();
   document.querySelectorAll('#tabs .tab').forEach(b => {
     b.onclick = () => setMode(b.dataset.mode);
   });
@@ -743,7 +776,17 @@ function init() {
   };
   $('#btnAddSubj').onclick = () => subjectDialog(null);
   $('#btnEditSubj').onclick = () => subjectDialog(Lib.subject);
+  $('#btnDelSubj').onclick = async () => {
+    const s = Lib.subject; if (!s) return;
+    const ok = await ask(
+      `حذف مادة «${s.name}» بكل دروسها وغلافها وخطتها نهائيًا؟ لا يمكن الرجوع في هذا.`,
+      { title: 'حذف مادة' });
+    if (ok !== true) return;
+    if (!await tryDo(() => DB.subjectDelete(s.id), 'تم حذف المادة')) return;
+    go('library');
+  };
   $('#btnNewLesson').onclick = () => openWork('prep');
+  $('#btnNewPrac').onclick   = () => openWork('prac');
   $('#btnTerm').onclick = printTerm;
   $('#btnExport').onclick = exportBackup;
   $('#btnImport').onclick = importBackup;
@@ -762,8 +805,10 @@ function init() {
   $('#btnCloseSettings').onclick = closeSettings;
   $('#settingsBack').addEventListener('click', e => { if (e.target.id === 'settingsBack') closeSettings(); });
   $('#btnSaveSettings').onclick = saveSettings;
-  $('#btnReset').onclick = () => {
-    if (!confirm('سيتم مسح المفتاح والبيانات المحفوظة على هذا الجهاز. متابعة؟')) return;
+  $('#btnReset').onclick = async () => {
+    const ok = await ask('سيتم مسح المفتاح والإعدادات المحفوظة على هذا الجهاز. متابعة؟',
+      { title: 'مسح الإعدادات', yes: 'مسح' });
+    if (ok !== true) return;
     Object.values(LS).forEach(store.del);
     location.reload();
   };
@@ -793,6 +838,7 @@ async function boot() {
 
     await migrateLegacy();
     await go('library');
+    await draftRestore();
   } catch (e) {
     console.error(e);
     toast('تعذّر فتح المكتبة على هذا الجهاز', true);

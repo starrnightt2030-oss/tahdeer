@@ -8,6 +8,62 @@ const Lib = {
   lessonId: null          /* الدرس المفتوح للتعديل، أو null لدرس جديد */
 };
 
+/* =========================================================================
+   نافذة تأكيد داخل التطبيق — بديل confirm() الأصلية
+   السبب: التطبيق المثبَّت على أندرويد (وبعض المتصفحات بعد أن يفعّل المستخدم
+   «منع هذه الصفحة من إنشاء نوافذ إضافية») يكتم النوافذ الأصلية فترجع false
+   صامتة، فيبدو زر الحذف كأنه لا يعمل. هذه النافذة من عناصر الصفحة نفسها فلا
+   يمكن كتمها.
+   الإرجاع: true = نعم · false = الزر الثاني · null = إغلاق/تراجع
+   ========================================================================= */
+function ask(msg, opts) {
+  const o = opts || {};
+  const back = document.querySelector('#askDlg');
+  if (!back) return Promise.resolve(window.confirm(msg));   /* احتياطي فقط */
+
+  document.querySelector('#askTitle').textContent = o.title || 'تأكيد الحذف';
+  document.querySelector('#askMsg').textContent = msg;
+  const yes = document.querySelector('#askYes');
+  const no  = document.querySelector('#askNo');
+  const cnc = document.querySelector('#askCancel');
+  const x   = document.querySelector('#askX');
+  yes.textContent = o.yes || 'حذف نهائيًا';
+  no.textContent  = o.no  || 'إلغاء';
+  yes.classList.toggle('danger', o.danger !== false);
+  cnc.hidden = !o.cancel;
+  if (o.cancel) cnc.textContent = o.cancel;
+  back.hidden = false;
+
+  return new Promise(res => {
+    const done = v => {
+      back.hidden = true;
+      yes.onclick = no.onclick = cnc.onclick = x.onclick = back.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      res(v);
+    };
+    const onKey = e => { if (e.key === 'Escape') done(null); };
+    yes.onclick = () => done(true);
+    no.onclick  = () => done(false);
+    cnc.onclick = () => done(null);
+    x.onclick   = () => done(null);
+    back.onclick = e => { if (e.target === back) done(null); };
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+/* ينفّذ عملية ويُظهر سبب الفشل بدل أن يفشل صامتًا */
+async function tryDo(fn, okMsg) {
+  try {
+    await fn();
+    if (okMsg) toast(okMsg);
+    return true;
+  } catch (e) {
+    console.error(e);
+    toast('تعذّر التنفيذ: ' + ((e && e.message) || e), true);
+    return false;
+  }
+}
+
 /* ---------------- التنقل ---------------- */
 async function go(screen, arg) {
   Lib.screen = screen;
@@ -60,11 +116,28 @@ async function renderLibrary() {
          <div class="chips">
            <i class="${cover ? 'ok' : ''}">${cover ? '✓' : '—'} غلاف</i>
            <i class="${plan ? 'ok' : ''}">${plan ? '✓' : '—'} خطة</i>
-           <i class="${lessons.length ? 'ok' : ''}">${toArabicDigits(lessons.length)} درس</i>
+           <i class="${lessons.filter(l => (l.kind || 'prep') === 'prep').length ? 'ok' : ''}">${toArabicDigits(lessons.filter(l => (l.kind || 'prep') === 'prep').length)} نظري</i>
+           <i class="${lessons.filter(l => l.kind === 'prac').length ? 'ok' : ''}">${toArabicDigits(lessons.filter(l => l.kind === 'prac').length)} عملي</i>
          </div>
        </div>
        <div class="sj-go">${svgIcon('book', 20)}</div>`;
     card.onclick = () => go('subject', s.id);
+
+    /* حذف المادة من المكتبة مباشرة */
+    const del = el('button', 'sj-del');
+    del.innerHTML = svgIcon('trash', 16, 'ico');
+    del.title = 'حذف المادة';
+    del.setAttribute('aria-label', 'حذف المادة');
+    del.onclick = async e => {
+      e.stopPropagation();
+      const ok = await ask(
+        `حذف مادة «${s.name}» بكل دروسها وغلافها وخطتها نهائيًا؟ لا يمكن الرجوع في هذا.`,
+        { title: 'حذف مادة' });
+      if (ok !== true) return;
+      if (await tryDo(() => DB.subjectDelete(s.id), 'تم حذف المادة')) renderLibrary();
+    };
+    card.appendChild(del);
+
     box.appendChild(card);
   }
   renderBackupBar();
@@ -79,7 +152,7 @@ async function renderSubject() {
   head.innerHTML =
     `<b>${escHtml(s.name)}</b>
      <span>${escHtml(s.grade || '')}${s.dept ? ' · ' + escHtml(s.dept) : ''}` +
-    `${s.year ? ' · ' + escHtml(s.year) : ''}${s.term ? ' · ' + escHtml(s.term) : ''}</span>`;
+    `${s.year ? ' · <bdi>' + escHtml(s.year) + '</bdi>' : ''}${s.term ? ' · ' + escHtml(s.term) : ''}</span>`;
 
   const cover = await DB.doc('cover', s.id);
   const plan  = await DB.doc('plan', s.id);
@@ -96,7 +169,8 @@ async function renderSubject() {
     main.onclick = onClick;
     wrapEl.appendChild(main);
     if (done && onDelete) {
-      const d = el('button', 'tile-del', '×');
+      const d = el('button', 'tile-del');
+      d.innerHTML = svgIcon('trash', 17, 'ico') + '<span>حذف</span>';
       d.title = 'حذف';
       d.onclick = onDelete;
       wrapEl.appendChild(d);
@@ -105,53 +179,72 @@ async function renderSubject() {
   };
 
   tiles.appendChild(tile('image', 'غلاف المادة',
-    cover ? 'جاهز — اضغط للتعديل أو الطباعة' : 'لم يُجهَّز بعد',
+    cover ? 'جاهز — اضغط لفتحه وتعديله أو طباعته' : 'لم يُجهَّز بعد — اضغط للتجهيز',
     !!cover, () => openWork('cover'),
     async () => {
-      if (!confirm('حذف غلاف هذه المادة؟ يمكنك تجهيزه من جديد في أي وقت.')) return;
-      await DB.docDelete('cover', s.id); toast('تم حذف الغلاف'); renderSubject();
+      const ok = await ask('حذف غلاف هذه المادة؟ يمكنك تجهيزه من جديد في أي وقت.',
+        { title: 'حذف الغلاف' });
+      if (ok !== true) return;
+      if (await tryDo(() => DB.docDelete('cover', s.id), 'تم حذف الغلاف')) renderSubject();
     }));
 
   tiles.appendChild(tile('week', 'الخطة الزمنية',
-    plan ? `جاهزة — ${toArabicDigits((plan.payload.rows || []).length)} أسبوع · اضغط للتعديل` : 'لم تُجهَّز بعد',
+    plan ? `جاهزة — ${toArabicDigits((plan.payload.rows || []).length)} أسبوع · اضغط لتعديلها` : 'لم تُجهَّز بعد — اضغط للتجهيز',
     !!plan, () => openWork('plan'),
     async () => {
-      if (!confirm('حذف الخطة الزمنية لهذه المادة بكل أسابيعها؟')) return;
-      await DB.docDelete('plan', s.id); toast('تم حذف الخطة'); renderSubject();
+      const ok = await ask('حذف الخطة الزمنية لهذه المادة بكل أسابيعها؟',
+        { title: 'حذف الخطة الزمنية' });
+      if (ok !== true) return;
+      if (await tryDo(() => DB.docDelete('plan', s.id), 'تم حذف الخطة')) renderSubject();
     }));
 
-  /* الدروس */
-  const list = $('#lessonList');
-  list.innerHTML = '';
-  if (!lessons.length) {
-    list.appendChild(el('div', 'empty small', '<span>لا توجد دروس محفوظة بعد.</span>'));
-  }
-  lessons.forEach(l => {
-    const row = el('div', 'les');
-    row.innerHTML =
-      `<span class="n">${toArabicDigits(l.lessonNo || '—')}</span>
-       <div class="tx"><b>${escHtml(l.title || 'بدون عنوان')}</b>
-         <span>${escHtml(new Date(l.updatedAt).toLocaleDateString('ar-EG'))}</span></div>`;
-    const open = el('button', 'ghost tiny', 'فتح');
-    open.onclick = () => openWork('prep', l.id);
-    const del = el('button', 'les-del', '×');
-    del.title = 'حذف الدرس';
-    del.onclick = async e => {
-      e.stopPropagation();
-      if (!confirm(`حذف «${l.title || 'الدرس'}» نهائيًا؟`)) return;
-      await DB.lessonDelete(l.id);
-      renderSubject();
-    };
-    row.appendChild(open); row.appendChild(del);
-    list.appendChild(row);
-  });
+  /* الدروس — نظري وعملي في قائمتين */
+  const prepLs = lessons.filter(l => (l.kind || 'prep') === 'prep');
+  const pracLs = lessons.filter(l => l.kind === 'prac');
+
+  const fillList = (sel, arr, mode, empty) => {
+    const list = $(sel);
+    if (!list) return;
+    list.innerHTML = '';
+    if (!arr.length) { list.appendChild(el('div', 'empty small', `<span>${empty}</span>`)); return; }
+    arr.forEach(l => {
+      const row = el('div', 'les');
+      row.innerHTML =
+        `<span class="n">${toArabicDigits(l.lessonNo || '—')}</span>
+         <div class="tx"><b>${escHtml(l.title || 'بدون عنوان')}</b>
+           <span>${escHtml(new Date(l.updatedAt).toLocaleDateString('ar-EG'))}</span></div>`;
+      const open = el('button', 'ghost tiny');
+      open.innerHTML = svgIcon('edit', 14, 'ico') + '<span>فتح وتعديل</span>';
+      open.onclick = () => openWork(mode, l.id);
+      const del = el('button', 'les-del');
+      del.innerHTML = svgIcon('trash', 16, 'ico');
+      del.title = 'حذف';
+      del.onclick = async e => {
+        e.stopPropagation();
+        const what = (mode === 'prac') ? 'موضوع' : 'درس';
+        const ok = await ask(`حذف ${what} «${l.title || 'بدون عنوان'}» نهائيًا؟`,
+          { title: 'حذف ' + what });
+        if (ok !== true) return;
+        if (await tryDo(() => DB.lessonDelete(l.id), 'تم الحذف')) renderSubject();
+      };
+      row.appendChild(open); row.appendChild(del);
+      list.appendChild(row);
+    });
+  };
+
+  fillList('#lessonList', prepLs, 'prep', 'لا توجد دروس نظرية محفوظة بعد.');
+  fillList('#pracList',   pracLs, 'prac', 'لا توجد مواضيع تدريب عملي محفوظة بعد.');
+  const cnt = (n, one, many) => n ? `${toArabicDigits(n)} ${n === 1 ? one : many}` : '';
+  if ($('#cntPrep')) $('#cntPrep').textContent = cnt(prepLs.length, 'درس', 'دروس');
+  if ($('#cntPrac')) $('#cntPrac').textContent = cnt(pracLs.length, 'موضوع', 'مواضيع');
 
   $('#btnTerm').disabled = !(cover || plan || lessons.length);
   $('#termHint').textContent = (cover || plan || lessons.length)
     ? 'يشمل: ' + [cover ? 'الغلاف' : null, plan ? 'الخطة الزمنية' : null,
-        lessons.length ? toArabicDigits(lessons.length) + (lessons.length === 1 ? ' درس' : ' دروس') : null]
+        cnt(prepLs.length, 'درس نظري', 'دروس نظرية') || null,
+        cnt(pracLs.length, 'موضوع عملي', 'مواضيع عملية') || null]
         .filter(Boolean).join(' + ')
-    : 'جهّز الغلاف أو الخطة أو درسًا واحدًا على الأقل أولًا';
+    : 'جهّز الغلاف أو الخطة أو تحضيرًا واحدًا على الأقل أولًا';
 }
 
 /* ---------------- إضافة / تعديل مادة ---------------- */
@@ -182,8 +275,11 @@ function subjectDialog(existing) {
     else go('subject', saved.id);
   };
   $('#sdDelete').onclick = async () => {
-    if (!confirm(`حذف مادة «${s.name}» بكل دروسها وغلافها وخطتها نهائيًا؟\nهذا لا يمكن الرجوع فيه.`)) return;
-    await DB.subjectDelete(s.id);
+    const ok = await ask(
+      `حذف مادة «${s.name}» بكل دروسها وغلافها وخطتها نهائيًا؟ لا يمكن الرجوع في هذا.`,
+      { title: 'حذف مادة' });
+    if (ok !== true) return;
+    if (!await tryDo(() => DB.subjectDelete(s.id), 'تم حذف المادة')) return;
     back.hidden = true;
     go('library');
   };
@@ -253,11 +349,13 @@ function importBackup() {
     try {
       const data = JSON.parse(await f.text());
       const n = (data.subjects || []).length, m = (data.lessons || []).length;
-      const replace = confirm(
-        `الملف يحتوي ${toArabicDigits(n)} مادة و${toArabicDigits(m)} درس.\n\n` +
-        'اضغط «موافق» لاستبدال مكتبتك الحالية بالكامل،\n' +
-        'أو «إلغاء» لإضافة محتوى الملف إلى مكتبتك الحالية.');
-      await DB.importAll(data, replace ? 'replace' : 'merge');
+      const r = await ask(
+        `الملف يحتوي ${toArabicDigits(n)} مادة و${toArabicDigits(m)} درس. ` +
+        'هل تستبدل مكتبتك الحالية بالكامل، أم تضيف محتوى الملف إليها؟',
+        { title: 'استيراد نسخة احتياطية', yes: 'استبدال المكتبة',
+          no: 'إضافة إلى المكتبة', cancel: 'تراجع' });
+      if (r === null) return;
+      await DB.importAll(data, r ? 'replace' : 'merge');
       const idn = await DB.get('identity', null);
       if (idn) { state.id = Object.assign({}, IDENTITY_DEFAULT, idn); }
       toast('تم استيراد النسخة الاحتياطية');

@@ -60,9 +60,29 @@ function ed(tag, cls, text, path) {
 /* =========================================================================
    الترقيم على صفحات
    ========================================================================= */
+/* إعداد النوع: النظري افتراضيًا، والعملي يمرّر إعداده الخاص */
+const PAGER_TH = {
+  head:       n => `تحضير الدرس ${escHtml(lessonOrdinal(n || 1))}`,
+  titleLabel: 'عنوان الدرس: ',
+  titleKey:   'lessonTitle',
+  strip:      () => STRIP_FIELDS,
+  rows:       () => ROW_FIELDS,
+  fields:     () => META_FIELDS
+};
+const PAGER_PR = {
+  /* بلا لاحقة «تدريب عملي» — اسم الإدارة في الترويسة يوضّحها، واللاحقة تُلفّ العنوان سطرين */
+  head:       n => `تحضير الموضوع ${escHtml(lessonOrdinal(n || 1))}`,
+  titleLabel: 'اسم الموضوع: ',
+  titleKey:   'topicTitle',
+  strip:      () => PRAC_STRIP_FIELDS,
+  rows:       () => PRAC_ROW_FIELDS,
+  fields:     () => PRAC_FIELDS
+};
+
 class Pager {
-  constructor(root, meta, id, data) {
+  constructor(root, meta, id, data, cfg) {
     this.root = root; this.meta = meta; this.id = id; this.data = data;
+    this.cfg = cfg || PAGER_TH;
     this.pages = [];
     root.innerHTML = '';
     this.newPage();
@@ -90,7 +110,7 @@ class Pager {
       : defaultLogoSvg(id);
     const titles = el('div', 'titles');
     titles.innerHTML =
-      `<h1>تحضير الدرس ${escHtml(lessonOrdinal(meta.lessonNo || 1))}</h1>` +
+      `<h1>${this.cfg.head(meta.lessonNo)}</h1>` +
       `<div class="pgno" data-pgno></div>`;
     const org = el('div', 'org');
     org.innerHTML =
@@ -100,10 +120,11 @@ class Pager {
     head.appendChild(org); head.appendChild(titles); head.appendChild(logo);
     main.appendChild(head);
 
-    /* عنوان الدرس */
+    /* عنوان الدرس / اسم الموضوع */
+    const tk = this.cfg.titleKey;
     const lt = el('div', 'lesson-title');
-    lt.innerHTML = 'عنوان الدرس: ';
-    lt.appendChild(ed('span', '', data.lessonTitle || '—', 'lessonTitle'));
+    lt.innerHTML = this.cfg.titleLabel;
+    lt.appendChild(ed('span', '', data[tk] || '—', tk));
     main.appendChild(lt);
 
     /* بيانات الحصة والمادة تظهر في الصفحة الأولى فقط */
@@ -158,8 +179,8 @@ class Pager {
     d.appendChild(el('span', 'dots'));
     s.appendChild(d);
 
-    STRIP_FIELDS.filter(k => k !== 'date').forEach(k => {
-      const f = META_FIELDS.find(x => x.key === k);
+    this.cfg.strip().filter(k => k !== 'date').forEach(k => {
+      const f = this.cfg.fields().find(x => x.key === k);
       const c = el('div', 'cellb stack');
       c.innerHTML = `<div class="ico">${svgIcon(STRIP_ICONS[k] || 'clock', 14)}</div>`;
       const t = el('div', 'txt');
@@ -173,8 +194,8 @@ class Pager {
 
   rows() {
     const r = el('div', 'rows');
-    ROW_FIELDS.forEach(k => {
-      const f = META_FIELDS.find(x => x.key === k);
+    this.cfg.rows().forEach(k => {
+      const f = this.cfg.fields().find(x => x.key === k);
       const line = el('div', 'rowline');
       line.innerHTML =
         `<div class="tag"><span>${escHtml(f.short || f.label)}</span>${svgIcon(ROW_ICONS[k] || 'book', 15, 'ic')}</div>`;
@@ -357,7 +378,9 @@ function blankPanel(bp) {
 /* =========================================================================
    تدفّق عناصر عرض الدرس عبر الصفحات
    ========================================================================= */
-function flowItems(pg, sec, items, data) {
+function flowItems(pg, sec, items, data, opts) {
+  opts = opts || {};
+  const base = opts.path || 'content';
   let idx = 0, firstPanel = true, guard = 0;
 
   while (idx < items.length && guard++ < 200) {
@@ -365,15 +388,15 @@ function flowItems(pg, sec, items, data) {
     const inner = el('div', 'items');
     p._body.appendChild(inner);
 
-    /* الشكل التوضيحي يوضع في أول لوحة */
-    if (firstPanel && data.figures && data.figures[0]) {
+    /* الشكل التوضيحي يوضع في أول لوحة (النظري فقط — العملي له لوحة رسم خاصة) */
+    if (firstPanel && !opts.noFigure && data.figures && data.figures[0]) {
       p._body.insertBefore(figureNode(data.figures[0], 0), inner);
     }
     pg.push(p);
 
     let added = 0;
     while (idx < items.length) {
-      const node = itemNode(items[idx], idx, `content.${idx}`);
+      const node = itemNode(items[idx], idx, `${base}.${idx}`);
       if (pg.pushInto(inner, node)) { idx++; added++; }
       else break;
     }
@@ -383,7 +406,7 @@ function flowItems(pg, sec, items, data) {
       if (pg.flow.children.length === 0) {
         /* لا يتسع حتى في صفحة فارغة — نضعه قسرًا لتجنّب حلقة لا نهائية */
         pg.flow.appendChild(p);
-        inner.appendChild(itemNode(items[idx], idx, `content.${idx}`));
+        inner.appendChild(itemNode(items[idx], idx, `${base}.${idx}`));
         idx++;
       } else {
         pg.newPage();

@@ -112,6 +112,96 @@ const SIGNATURES = [
   { label: 'مدير إدارة جودة وتكنولوجيا التعليم' }
 ];
 
+/* =========================================================================
+   التحضير العملي — نموذج إدارة التدريب العملي (F-PR-03)
+   مبنيّ على «التحضير العملى ٣.docx» المعتمد: نفس الأقسام وترتيبها ونفس
+   التوقيعات. استمارة التقييم بأسماء الطلاب ليست جزءًا من التحضير — تُطبع
+   منفصلة وتُرفق بعد الطباعة.
+   ========================================================================= */
+
+/* الهوية تتغيّر في العملي: اسم الإدارة ورقم النموذج */
+const IDENTITY_PRAC = { dept2: 'إدارة التدريب العملي', formCode: 'F-PR-03' };
+
+const PRAC_FIELDS = [
+  { key: 'lessonNo', label: 'رقم الموضوع', type: 'text', ph: 'مثال: ٣', remember: false, req: true },
+  { key: 'date',     label: 'التاريخ',      type: 'date', remember: false },
+  { key: 'period',   label: 'الحصة',        type: 'text', ph: 'مثال: ٣', remember: false },
+  { key: 'duration', label: 'زمن التنفيذ',  type: 'text', ph: '٩٠ دقيقة', remember: true },
+  { key: 'group',    label: 'المجموعة',     type: 'text', ph: 'مثال: أ', remember: true },
+  { key: 'subject',  label: 'المادة / الورشة', type: 'text', ph: 'ورشة التركيبات الكهربائية', remember: true, req: true },
+  { key: 'grade',    label: 'الصف / الفرقة', type: 'text', ph: 'الصف الأول الثانوي الصناعي', remember: true, req: true },
+  { key: 'dept',     label: 'التخصص',       type: 'text', ph: 'التركيبات الكهربائية', remember: true },
+  { key: 'teacher',  label: 'اسم المدرب', short: 'المدرب', type: 'text',
+    ph: 'الاسم كما يُكتب في التوقيع', remember: true },
+  { key: 'kind',     label: 'نوع الموضوع', type: 'select', remember: false, noPrint: true,
+    options: [
+      { v: 'exercise',  t: 'تمرين — يُنفّذه الطالب' },
+      { v: 'operation', t: 'شرح عملية / عدة وأدوات' }
+    ] },
+  { key: 'lang',     label: 'لغة المحتوى', type: 'select', remember: true, noPrint: true,
+    options: [
+      { v: 'auto', t: 'تلقائي حسب المادة' },
+      { v: 'ar',   t: 'عربي' },
+      { v: 'en',   t: 'إنجليزي' }
+    ] }
+];
+
+const PRAC_STRIP_FIELDS = ['date', 'period', 'duration', 'group'];
+const PRAC_ROW_FIELDS   = ['subject', 'grade', 'dept', 'teacher'];
+
+/* kinds إضافية للعملي:
+   pairs → جدول عمودين مرقّمين (م | العدد والأدوات) × ٢
+   draw  → مربع الرسم: صورة مقصوصة من الكتاب أو رسم بديل، وإلا إطار فارغ
+*/
+const PRAC_SECTIONS = [
+  { key: 'topicTitle', label: 'اسم الموضوع', kind: 'text', place: 'title',
+    ai: 'اسم الموضوع/التمرين كما ورد في الكتاب — كلمات قليلة دقيقة.' },
+
+  { key: 'purpose', label: 'الغرض من الموضوع', kind: 'list', icon: 'target', place: 'intro',
+    ai: '٣–٤ نقاط: الغرض من تنفيذ هذا الموضوع، كل نقطة تبدأ بفعل أدائي ' +
+        '(أن يكتسب مهارة… أن يتمكّن من…) وتصف مهارة عملية لا معرفة نظرية.' },
+
+  { key: 'elements', label: 'عناصر الموضوع', kind: 'list', icon: 'book', place: 'intro',
+    ai: '٣–٥ عناصر: رؤوس الموضوعات التي يغطيها التمرين بالترتيب، عنصر في كل سطر.' },
+
+  { key: 'materials', label: 'الخامات المطلوبة', kind: 'list', icon: 'clip', place: 'trio2',
+    ai: '٣–٦ خامات مستهلكة فعلية لهذا التمرين بالمقاسات والكميات كما في الكتاب ' +
+        '(مثال: سلك نحاس مرن ١×١.٥ مم² — ٣ متر).' },
+
+  { key: 'tools', label: 'العدد والأدوات اللازمة', kind: 'pairs', icon: 'tools', place: 'main',
+    ai: 'من ٦ إلى ١٠ عدد وأدوات وأجهزة قياس لازمة فعلًا لتنفيذ هذا التمرين، ' +
+        'كل واحدة باسمها الفني الدقيق ومقاسها إن ذُكر. سطر واحد لكل أداة.' },
+
+  { key: 'drawing', label: 'رسم التمرين', kind: 'draw', icon: 'image', place: 'main',
+    ai: 'وصف الرسم المطلوب: لو الموضوع تمرين فهو شكل التمرين المنفَّذ ' +
+        '(الدائرة أو التوصيل أو القطعة بأبعادها)، ولو شرح عملية فهو رسم العدة/الأداة ' +
+        'أو مراحل العملية. سطران يوصفان ما يجب أن يظهر في الرسم.' },
+
+  { key: 'steps', label: 'طريقة تنفيذ التمرين', kind: 'items', icon: 'play', place: 'main',
+    contLabel: 'تابع طريقة تنفيذ التمرين',
+    ai: 'قلب التحضير: من ٦ إلى ١٠ خطوات تنفيذ مرقّمة بالترتيب الفعلي على الطبيعة. ' +
+        'كل خطوة: عنوان قصير ينتهي بنقطتين ثم وصف تنفيذي مباشر بصيغة الأمر ' +
+        '(قِس… ثبّت… أوصل…) مع المقاسات والقيم والعِدد المستخدمة في الخطوة. ' +
+        'أضف تحذيرًا فنيًا في الخطوة التي تحتاجه.' },
+
+  { key: 'safety', label: 'قواعد الأمن الصناعي', kind: 'list', icon: 'warn', place: 'row1', tone: 'red',
+    ai: '٤–٦ قواعد أمن صناعي مرتبطة بهذا التمرين تحديدًا وبالعِدد المستخدمة فيه، ' +
+        'لا قواعد عامة مرسلة.' },
+
+  { key: 'ppe', label: 'مهمات الوقاية الشخصية', kind: 'checklist', icon: 'group', place: 'row1',
+    ai: '٣–٥ مهمات وقاية شخصية يلزم استخدامها في هذا التمرين (نظارة واقية، قفاز عازل…).' }
+];
+
+const PRAC_BLANK_PANELS = [
+  { key: 'trainerNotes', label: 'ملاحظات المدرب', icon: 'clip', place: 'row1', lines: 4 }
+];
+
+const PRAC_SIGNATURES = [
+  { label: 'مدرب المجموعة', nameFrom: 'teacher' },
+  { label: 'رئيس قسم متابعة التدريب العملي' },
+  { label: 'مدير إدارة التدريب العملي' }
+];
+
 /* ---------- حقول الخطة الزمنية ---------- */
 const PLAN_FIELDS = [
   { key: 'subject',   label: 'المادة',            type: 'text', ph: 'أساسيات الهندسة الكهربائية', remember: true, req: true },

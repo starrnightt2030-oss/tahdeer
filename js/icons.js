@@ -19,7 +19,9 @@ const ICONS = {
   grade: 'M12 3 1 9l11 6 9-4.9V17h2V9zM5 13.2V17c0 1.7 3.1 3 7 3s7-1.3 7-3v-3.8l-7 3.8z',
   bolt:  'M13 2 4 14h6l-1 8 9-12h-6z',
   gear:  'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m9.4 4a7.4 7.4 0 0 1-.1 1.2l2 1.6-1.9 3.3-2.4-1a7.6 7.6 0 0 1-2 1.2l-.4 2.6h-3.8l-.4-2.6a7.6 7.6 0 0 1-2-1.2l-2.4 1L2 14.8l2-1.6a7.4 7.4 0 0 1 0-2.4L2 9.2l2-3.3 2.4 1a7.6 7.6 0 0 1 2-1.2l.4-2.6h3.8l.4 2.6c.7.3 1.4.7 2 1.2l2.4-1 1.9 3.3-2 1.6c.1.4.1.8.1 1.2',
-  image: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2M8.5 13.5l2.5 3 3.5-4.5 4.5 6H5z'
+  image: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2M8.5 13.5l2.5 3 3.5-4.5 4.5 6H5z',
+  trash: 'M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2zm3 2v9h2v-9zm4 0v9h2v-9z',
+  edit:  'M3 17.2V21h3.8L18 9.8 14.2 6zM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8L18.9 8.9z'
 };
 
 function svgIcon(name, size, cls) {
@@ -27,5 +29,6 @@ function svgIcon(name, size, cls) {
   return `<svg class="${cls || 'ic'}" viewBox="0 0 24 24" width="${size || 16}" height="${size || 16}" aria-hidden="true"><path fill="currentColor" d="${d}"/></svg>`;
 }
 
-const STRIP_ICONS = { date: 'cal', week: 'week', period: 'clock', duration: 'clock', unit: 'unit' };
+const STRIP_ICONS = { date: 'cal', week: 'week', period: 'clock', duration: 'clock', unit: 'unit',
+  group: 'group' };
 const ROW_ICONS   = { subject: 'book', grade: 'grade', dept: 'bolt', teacher: 'clip' };

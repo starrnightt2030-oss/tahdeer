@@ -440,3 +440,155 @@ function buildPlanDocx(p, id) {
   ];
   return makeZip(files, CT + '.document');
 }
+
+/* =========================================================================
+   تحضير التدريب العملي — ملف Word (F-PR-03)
+   ========================================================================= */
+function buildPracDocumentXml(data, meta, id) {
+  const navy = id.navy, red = id.red;
+  let b = '';
+
+  /* الهوية */
+  b += wTable([
+    `<w:tr>${wCell([
+      wPara(id.org, { b: true, size: 13, color: navy, align: 'center', after: 0 }),
+      wPara(id.dept1, { b: true, size: 10.5, color: red, align: 'center', before: 0, after: 0 }),
+      wPara(id.dept2, { size: 10, color: navy, align: 'center', before: 0 })
+    ], { w: CONTENT_W })}</w:tr>`,
+    `<w:tr>${wCell([
+      wPara('تحضير الموضوع ' + lessonOrdinal(meta.lessonNo || 1) + ' — تدريب عملي',
+        { b: true, size: 15, color: '#FFFFFF', align: 'center', after: 0 }),
+      wPara('اسم الموضوع: ' + (data.topicTitle || ''),
+        { b: true, size: 11.5, color: '#FFFFFF', align: 'center', before: 0 })
+    ], { w: CONTENT_W, shade: navy })}</w:tr>`
+  ], { border: navy, grid: [CONTENT_W] }) + gap();
+
+  /* البيانات الأساسية */
+  b += head('البيانات الأساسية', navy);
+  const pairs = [];
+  PRAC_FIELDS.filter(f => !f.noPrint).forEach(f => pairs.push([f.label,
+    f.key === 'date' ? (meta.dateText || meta.date || '') : (meta[f.key] || '')]));
+  const cw = Math.floor(CONTENT_W / 6), vw = Math.floor(CONTENT_W / 3) - cw;
+  const rows = [];
+  for (let i = 0; i < pairs.length; i += 3) {
+    let r = '';
+    for (let j = 0; j < 3; j++) {
+      const p = pairs[i + j] || ['', ''];
+      r += wCell(wPara(p[0], { b: true, size: 9.5, color: navy }), { w: cw, shade: '#EDF1F9' }) +
+           wCell(wPara(p[1], { size: 9.5 }), { w: vw });
+    }
+    rows.push(r);
+  }
+  b += wTable(rows, { grid: [cw, vw, cw, vw, cw, vw] }) + gap();
+
+  /* الغرض · العناصر · الخامات */
+  [['purpose', 'الغرض من الموضوع'], ['elements', 'عناصر الموضوع'], ['materials', 'الخامات المطلوبة']]
+    .forEach(([k, l]) => { if (data[k] && data[k].length) b += head(l, navy) + box(bullets(data[k])) + gap(70); });
+
+  /* العدد والأدوات — عمودان مرقّمان */
+  if (data.tools && data.tools.length) {
+    const list = data.tools, half = Math.ceil(list.length / 2);
+    const nw = Math.floor(CONTENT_W * 0.08), tw = Math.floor(CONTENT_W * 0.42);
+    const hr = '<w:tr>' +
+      wCell(wPara('م', { b: true, size: 9.5, color: '#FFFFFF', align: 'center' }), { w: nw, shade: navy }) +
+      wCell(wPara('العدة / الأداة', { b: true, size: 9.5, color: '#FFFFFF', align: 'center' }), { w: tw, shade: navy }) +
+      wCell(wPara('م', { b: true, size: 9.5, color: '#FFFFFF', align: 'center' }), { w: nw, shade: navy }) +
+      wCell(wPara('العدة / الأداة', { b: true, size: 9.5, color: '#FFFFFF', align: 'center' }), { w: tw, shade: navy }) +
+      '</w:tr>';
+    const trs = [hr];
+    for (let i = 0; i < half; i++) {
+      const j = i + half;
+      trs.push('<w:tr>' +
+        wCell(wPara(toArabicDigits(i + 1), { size: 9.5, align: 'center' }), { w: nw, shade: '#F5F8FD' }) +
+        wCell(cPara(list[i] || '', { size: 9.5 }), { w: tw }) +
+        wCell(wPara(j < list.length ? toArabicDigits(j + 1) : '', { size: 9.5, align: 'center' }), { w: nw, shade: '#F5F8FD' }) +
+        wCell(cPara(list[j] || '', { size: 9.5 }), { w: tw }) +
+        '</w:tr>');
+    }
+    b += head('العدد والأدوات اللازمة', navy) +
+      wTable(trs, { border: navy, grid: [nw, tw, nw, tw] }) + gap();
+  }
+
+  /* رسم التمرين — إطار للرسم اليدوي، وتحته وصف ما يجب أن يظهر */
+  const drawTitle = (data.practKind === 'operation') ? 'رسم العملية / العدة والأدوات' : 'رسم التمرين';
+  const dInner = [];
+  if (data.drawing) dInner.push(cPara(data.drawing, { size: 9.5, b: true, color: navy }));
+  for (let i = 0; i < 10; i++) dInner.push(wPara('', { size: 11 }));
+  b += head(drawTitle, navy) + box(dInner) + gap();
+
+  /* طريقة تنفيذ التمرين */
+  if (data.steps && data.steps.length)
+    b += head('طريقة تنفيذ التمرين', navy) + box(contentItems(data.steps, navy, red)) + gap();
+
+  /* الأمن الصناعي */
+  if (data.safety && data.safety.length)
+    b += wTable([`<w:tr>${wCell(
+      [wPara('قواعد الأمن الصناعي', { b: true, color: red, align: 'center', size: 11, after: 0 })]
+        .concat(bullets(data.safety)),
+      { w: CONTENT_W, shade: '#FDF2F3' })}</w:tr>`], { border: red, grid: [CONTENT_W] }) + gap();
+
+  /* مهمات الوقاية الشخصية */
+  if (data.ppe && data.ppe.length)
+    b += head('مهمات الوقاية الشخصية', navy) +
+      box(data.ppe.map(t => cPara('☐  ' + t, { ind: 110 }))) + gap(70);
+
+  /* ملاحظات المدرب */
+  b += head('ملاحظات المدرب', navy) +
+    box([1, 2, 3, 4].map(() => wPara('.'.repeat(95), { size: 9.5, color: '#8A97B4' }))) + gap();
+
+  /* التوقيعات */
+  const sw = Math.floor(CONTENT_W / PRAC_SIGNATURES.length);
+  b += wTable([
+    '<w:tr>' + PRAC_SIGNATURES.map(sig => wCell(wPara(sig.label,
+      { b: true, align: 'center', size: 9.5, color: navy }), { w: sw, shade: '#EDF1F9' })).join('') + '</w:tr>',
+    '<w:tr>' + PRAC_SIGNATURES.map(sig => wCell([
+      wPara(sig.nameFrom ? (meta[sig.nameFrom] || '') : '', { align: 'center', size: 9.5, b: true, after: 0 }),
+      wPara(''), wPara('')
+    ], { w: sw, vAlign: 'top' })).join('') + '</w:tr>'
+  ], { grid: PRAC_SIGNATURES.map(() => sw) });
+
+  const sect = '<w:sectPr>' +
+    '<w:headerReference w:type="default" r:id="rId10"/><w:footerReference w:type="default" r:id="rId11"/>' +
+    `<w:pgSz w:w="${TW.pageW}" w:h="${TW.pageH}"/>` +
+    `<w:pgMar w:top="1000" w:right="${TW.marg}" w:bottom="900" w:left="${TW.marg}" w:header="420" w:footer="380"/>` +
+    '<w:bidi/></w:sectPr>';
+
+  return xmlHead('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+    `<w:body>${b}${sect}</w:body></w:document>`);
+}
+
+function buildPracDocx(data, meta, id) {
+  const pid = Object.assign({}, id || IDENTITY_DEFAULT, IDENTITY_PRAC);
+  CONTENT_LTR = (data && data.contentLang === 'en');
+  const CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml';
+  const files = [
+    { name: '[Content_Types].xml', data: xmlHead(
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      `<Override PartName="/word/document.xml" ContentType="${CT}.document.main+xml"/>` +
+      `<Override PartName="/word/styles.xml" ContentType="${CT}.styles+xml"/>` +
+      `<Override PartName="/word/settings.xml" ContentType="${CT}.settings+xml"/>` +
+      `<Override PartName="/word/header1.xml" ContentType="${CT}.header+xml"/>` +
+      `<Override PartName="/word/footer1.xml" ContentType="${CT}.footer+xml"/>` +
+      '</Types>') },
+    { name: '_rels/.rels', data: xmlHead(
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+      '</Relationships>') },
+    { name: 'word/_rels/document.xml.rels', data: xmlHead(
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' +
+      '<Relationship Id="rId10" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' +
+      '<Relationship Id="rId11" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' +
+      '</Relationships>') },
+    { name: 'word/document.xml', data: buildPracDocumentXml(data, meta, pid) },
+    { name: 'word/styles.xml',   data: STYLES_XML },
+    { name: 'word/settings.xml', data: SETTINGS_XML },
+    { name: 'word/header1.xml',  data: headerXml(pid) },
+    { name: 'word/footer1.xml',  data: footerXml(pid) }
+  ];
+  return makeZip(files, CT + '.document');
+}

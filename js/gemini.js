@@ -91,6 +91,117 @@ const RESPONSE_SCHEMA = {
     'homework', 'figures']
 };
 
+/* =========================================================================
+   مخطط ومطالبة التحضير العملي (F-PR-03)
+   ========================================================================= */
+const PRAC_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    contentLang: S_STR,
+    topicTitle:  S_STR,
+    practKind:   S_STR,          /* exercise | operation */
+    purpose:     S_LIST,
+    elements:    S_LIST,
+    materials:   S_LIST,
+    tools:       S_LIST,
+    drawing:     S_STR,          /* وصف ما يجب أن يظهر في مربع الرسم */
+    steps: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          heading: S_STR,
+          body:    S_STR,
+          bullets: S_LIST,
+          table: {
+            type: 'OBJECT',
+            properties: { title: S_STR, columns: S_LIST, rows: S_GRID },
+            propertyOrdering: ['title', 'columns', 'rows']
+          }
+        },
+        propertyOrdering: ['heading', 'body', 'bullets', 'table']
+      }
+    },
+    safety: S_LIST,
+    ppe:    S_LIST,
+    figures: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          caption: S_STR,
+          page:    { type: 'INTEGER' },
+          box_2d:  { type: 'ARRAY', items: { type: 'INTEGER' } }
+        },
+        propertyOrdering: ['caption', 'page', 'box_2d']
+      }
+    }
+  },
+  propertyOrdering: ['contentLang', 'topicTitle', 'practKind', 'purpose', 'elements',
+    'materials', 'tools', 'drawing', 'steps', 'safety', 'ppe', 'figures']
+};
+
+function buildPracPrompt(meta, pageCount) {
+  const subj = meta.subject || 'الورشة';
+  const isEx = meta.kind !== 'operation';
+  const kindRule = isEx
+    ? 'المدرب حدّد أن الموضوع **تمرين يُنفّذه الطالب بيده**. اضبط practKind = "exercise". ' +
+      'واجعل مربع الرسم هو **شكل التمرين المطلوب تنفيذه** (الدائرة أو التوصيل أو ' +
+      'القطعة بأبعادها ومقاساتها)، وخطوات التنفيذ هي خطوات تنفيذ التمرين على الطبيعة.'
+    : 'المدرب حدّد أن الموضوع **شرح عملية أو شرح عدة وأدوات**. اضبط practKind = "operation". ' +
+      'واجعل مربع الرسم هو **رسم العدة/الأداة أو مراحل العملية** التي نشرحها، ' +
+      'وخطوات التنفيذ هي مراحل أداء العملية بالترتيب الصحيح.';
+
+  return `أنت مدرب صناعي خبير في إدارة التدريب العملي بمركز تدريب صناعي، ومتخصص في «${subj}».
+
+مرفق ${toArabicDigits(pageCount)} صورة لصفحات موضوع تدريب عملي من كتاب أو دليل ورشة. اقرأها كاملة بعناية — النصوص والرسوم والمقاسات وجداول العدد والخامات — ثم حوّلها إلى **تحضير تدريب عملي احترافي** يُطبع على نموذج معتمد.
+
+## لغة المحتوى
+${langRule(meta)}
+
+## نوع الموضوع
+${kindRule}
+
+بيانات الجلسة كما أدخلها المدرب:
+• الورشة/المادة: ${meta.subject || '—'}   • الصف/الفرقة: ${meta.grade || '—'}   • التخصص: ${meta.dept || '—'}
+• رقم الموضوع: ${meta.lessonNo || '—'}   • المجموعة: ${meta.group || '—'}   • الحصة: ${meta.period || '—'}
+• زمن التنفيذ: ${meta.duration || '٩٠ دقيقة'}
+${meta.hint ? '• توجيه من المدرب: ' + meta.hint : ''}
+
+الحقول المطلوبة:
+1. topicTitle — اسم الموضوع/التمرين كما ورد في الكتاب، مختصر ودقيق.
+2. purpose — ٣ إلى ٤ نقاط: الغرض من تنفيذ الموضوع، كل نقطة تصف **مهارة أدائية** يكتسبها الطالب
+   (أن يكتسب مهارة… أن يتمكّن من… أن يجيد استخدام…)، لا معرفة نظرية.
+3. elements — ٣ إلى ٥ عناصر: رؤوس الموضوعات التي يغطيها التمرين بالترتيب، عنصر في كل سطر.
+4. materials — الخامات المستهلكة الفعلية بالمقاسات والكميات كما وردت
+   (مثال: سلك نحاس مرن 1×1.5 mm² — 3 m). من ٣ إلى ٦.
+5. tools — من ٦ إلى ١٠ عدد وأدوات وأجهزة قياس لازمة فعلًا لهذا التمرين، كل واحدة باسمها
+   الفني الدقيق ومقاسها إن ذُكر. سطر واحد لكل أداة، بلا ترقيم داخل النص (النموذج يرقّم تلقائيًا).
+6. drawing — سطران يصفان ما يجب أن يظهر في مربع الرسم حسب نوع الموضوع أعلاه.
+7. steps — قلب التحضير: من ٦ إلى ١٠ خطوات تنفيذ مرقّمة بالترتيب الفعلي على الطبيعة. لكل خطوة:
+   • heading: عنوان قصير ينتهي بنقطتين.
+   • body: وصف تنفيذي مباشر **بصيغة الأمر** (قِس… ثبّت… أوصل… اختبر…) مع المقاسات والقيم
+     والعِدد المستخدمة في هذه الخطوة تحديدًا.
+   • bullets: نقاط عند الحاجة (مثل عزوم الربط أو قيم القياس المتوقعة).
+   • table: جدول عند الحاجة فقط (جدول قياسات أو مواصفات).
+   وأضف في الخطوة التي تحتاجه تحذيرًا فنيًا صريحًا داخل body.
+8. safety — ٤ إلى ٦ قواعد أمن صناعي مرتبطة **بهذا التمرين وعِدده تحديدًا**، لا قواعد عامة مرسلة.
+9. ppe — ٣ إلى ٥ مهمات وقاية شخصية يلزم استخدامها في هذا التمرين.
+10. figures — الرسوم والأشكال المفيدة في الصفحات المرفقة (من صفر إلى ٢). لكل شكل:
+    caption عنوان قصير، page رقم الصورة المرفقة (يبدأ من ١)،
+    box_2d إحداثيات الإطار [y1, x1, y2, x2] بقيم من ٠ إلى ١٠٠٠ نسبةً لأبعاد تلك الصورة.
+    **الأولوية القصوى لرسم التمرين أو رسم العملية/العدة** — لا تختر فقرات نصية ولا ترويسات.
+
+قواعد إلزامية:
+- كل المحتوى مستخرج من الموضوع المرفق نفسه — ممنوع الكلام العام الذي يصلح لأي تمرين.
+- الأسلوب أسلوب ورشة: أفعال أداء ومقاسات وأدوات بأسمائها، لا لغة نظرية.
+- **كل الأرقام والمقاسات والقيم تُكتب بالأرقام اللاتينية (0 1 2 3)** مع وحداتها كما هي
+  (1.5 mm², 220 V, M8, 25 N·m). لا تستخدم الأرقام العربية الهندية داخل أي قيمة أو مقاس.
+- لا تترك حقلًا فارغًا ولا تكتب «حسب الحاجة» أو «يحددها المدرب».
+- لا تُنتج جدول تقييم الطلاب ولا أسماءهم — يُطبع منفصلًا عن التحضير.
+- أعِد JSON فقط مطابقًا للمخطط، بلا أي شرح خارجه.`;
+}
+
 /* ---------- التعليمات ---------- */
 function langRule(meta) {
   if (meta.lang === 'ar') {
@@ -173,12 +284,13 @@ function callModel(id, apiKey, body) {
 }
 
 /* ---------- الاستدعاء ---------- */
-async function generateTahdeer({ apiKey, model, pages, meta, onProgress }) {
+async function generateTahdeer({ apiKey, model, pages, meta, onProgress, kind }) {
   if (!apiKey) throw new Error('لم يتم إدخال مفتاح Gemini. افتح الإعدادات وأدخل المفتاح أولًا.');
   if (!pages || !pages.length) throw new Error('ارفع ملف الدرس (PDF أو صور) أولًا.');
 
+  const prac = (kind === 'prac');
   const parts = pages.map(canvasToPart);
-  parts.push({ text: buildPrompt(meta, pages.length) });
+  parts.push({ text: prac ? buildPracPrompt(meta, pages.length) : buildPrompt(meta, pages.length) });
 
   const body = {
     contents: [{ role: 'user', parts }],
@@ -187,7 +299,7 @@ async function generateTahdeer({ apiKey, model, pages, meta, onProgress }) {
       topP: 0.9,
       maxOutputTokens: 8192,
       responseMimeType: 'application/json',
-      responseSchema: RESPONSE_SCHEMA
+      responseSchema: prac ? PRAC_SCHEMA : RESPONSE_SCHEMA
     }
   };
 
@@ -229,7 +341,7 @@ async function generateTahdeer({ apiKey, model, pages, meta, onProgress }) {
     if (!m) throw new Error('تعذّر قراءة نتيجة النموذج. أعد المحاولة.');
     data = JSON.parse(m[0]);
   }
-  return normalize(data);
+  return prac ? normalizePrac(data, meta) : normalize(data);
 }
 
 /* ---------- تنظيف المخرجات ---------- */
@@ -255,5 +367,35 @@ function normalize(d) {
   if (d.assessment && !Array.isArray(d.assessment.questions)) d.assessment = null;
   d.figures = Array.isArray(d.figures) ? d.figures.slice(0, 2) : [];
   d.contentLang = /^en/i.test(String(d.contentLang || '')) ? 'en' : 'ar';
+  return d;
+}
+
+/* ---------- تنظيف مخرجات التحضير العملي ---------- */
+function normalizePrac(d, meta) {
+  d = d || {};
+  const arr = v => Array.isArray(v) ? v.filter(x => String(x || '').trim())
+    .map(x => String(x).replace(/^\s*[\d٠-٩]+\s*[-.)–]\s*/, '').trim()) : [];
+
+  d.purpose   = arr(d.purpose);
+  d.elements  = arr(d.elements);
+  d.materials = arr(d.materials);
+  d.tools     = arr(d.tools).slice(0, 12);
+  d.safety    = arr(d.safety);
+  d.ppe       = arr(d.ppe);
+  d.drawing   = String(d.drawing || '').trim();
+
+  d.steps = (Array.isArray(d.steps) ? d.steps : []).map(it => ({
+    heading: it.heading || '',
+    body: it.body || '',
+    bullets: arr(it.bullets),
+    table: (it.table && Array.isArray(it.table.columns) && it.table.columns.length &&
+            Array.isArray(it.table.rows) && it.table.rows.length) ? it.table : null
+  })).filter(it => it.heading || it.body || it.bullets.length || it.table);
+
+  d.figures = Array.isArray(d.figures) ? d.figures.slice(0, 2) : [];
+  d.contentLang = /^en/i.test(String(d.contentLang || '')) ? 'en' : 'ar';
+  /* اختيار المدرب هو الحاكم — لا اجتهاد النموذج */
+  d.practKind = ((meta && meta.kind) === 'operation') ? 'operation' : 'exercise';
+  d.docKind = 'prac';
   return d;
 }
