@@ -5,7 +5,9 @@
 .paper{ --navy:#16295C; --navy-d:#0E1C41; --red:#C8102E;
   --ink:#111827; --line:#1E3A78; --soft:#EAF0FA; --soft2:#F5F8FD;
   --bar-h:11mm; --pad:7mm;
-  display:flex; flex-direction:column; align-items:center; gap:8mm; }
+  display:flex; flex-direction:column; align-items:flex-start; gap:6mm;
+  transform-origin:top right; }   /* RTL: نقطة الثبات هي الحد الأيمن */
+.paper > .page{ flex:0 0 auto }   /* الصفحات لا تنكمش أبدًا */
 
 .page{
   position:relative; width:210mm; height:297mm; background:#fff; overflow:hidden;

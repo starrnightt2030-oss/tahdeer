@@ -23,6 +23,7 @@ const state = {
   files: [],
   pages: [],
   data: null,
+  zoom: null,               /* null = ملء العرض */
   id: Object.assign({}, IDENTITY_DEFAULT, store.get(LS.id, {}))
 };
 
@@ -200,15 +201,50 @@ function bindEdits() {
   });
 }
 
+/* ---------------- مقياس عرض الورقة ---------------- */
+function fitScale() {
+  const p = $('#paper');
+  const pg = p.querySelector('.page');
+  const pageW = pg ? pg.offsetWidth : 794;
+  return Math.min(1, (p.parentElement.clientWidth - 2) / pageW);
+}
+
 function fitPaper() {
   const p = $('#paper');
-  const avail = p.parentElement.clientWidth;
-  const pageW = p.querySelector('.page') ? p.querySelector('.page').offsetWidth : 794;
-  const s = Math.min(1, avail / pageW);
-  p.style.transform = s < 1 ? `scale(${s})` : '';
-  p.style.height = s < 1 ? (p.scrollHeight * s) + 'px' : '';
+  const box = p.parentElement;
+  const pg = p.querySelector('.page');
+  if (!pg) return;
+
+  const pageW = pg.offsetWidth;          // 210mm بالبكسل
+  const fit = fitScale();
+  const s = state.zoom || fit;
+
+  /* الحاوية تُقاس بعرض الصفحة الحقيقي، والتصغير من الزاوية العليا اليسرى */
+  p.style.width = pageW + 'px';
+  p.style.height = '';
+  p.style.transform = (Math.abs(s - 1) > 0.001) ? `scale(${s})` : '';
+
+  box.style.height = Math.ceil(p.scrollHeight * s) + 'px';
+  box.style.overflowX = (s > fit + 0.001) ? 'auto' : 'hidden';
+
+  const lvl = $('#btnZoomFit');
+  if (lvl) lvl.textContent = state.zoom ? Math.round(s * 100) + '٪' : 'ملء العرض';
 }
+
+function setZoom(z) {
+  const fit = fitScale();
+  if (z == null) state.zoom = null;
+  else state.zoom = Math.max(0.35, Math.min(2.5, z));
+  fitPaper();
+  if (state.zoom && state.zoom > fit) {
+    /* عند التكبير ابدأ من أعلى يمين الورقة (اتجاه القراءة) */
+    const box = $('#paper').parentElement;
+    box.scrollLeft = box.scrollWidth;
+  }
+}
+
 window.addEventListener('resize', () => { if (state.data) fitPaper(); });
+window.addEventListener('orientationchange', () => { if (state.data) setTimeout(fitPaper, 250); });
 
 /* ---------------- 5) الإعدادات ---------------- */
 const ID_FIELDS = [
@@ -287,11 +323,40 @@ function fileBase() {
 }
 
 function doPrint() {
-  const p = $('#paper');
-  const prev = p.style.transform, prevH = p.style.height;
-  p.style.transform = ''; p.style.height = '';
+  const p = $('#paper'), box = p.parentElement;
+  const st = { t: p.style.transform, w: p.style.width, h: box.style.height, o: box.style.overflowX };
+  p.style.transform = ''; p.style.width = '';
+  box.style.height = ''; box.style.overflowX = '';
   window.print();
-  setTimeout(() => { p.style.transform = prev; p.style.height = prevH; }, 400);
+  setTimeout(() => {
+    p.style.transform = st.t; p.style.width = st.w;
+    box.style.height = st.h; box.style.overflowX = st.o;
+  }, 600);
+}
+
+/* ---------------- تحضير درس جديد ---------------- */
+function newLesson() {
+  if (state.data && !confirm('سيتم إخلاء التحضير الحالي والملفات المرفوعة للبدء من جديد.\nتأكد أنك حفظت النسخة (PDF أو Word) قبل المتابعة. متابعة؟')) return;
+
+  state.files = []; state.pages = []; state.data = null; state.zoom = null;
+  store.del(LS.last);
+  renderFiles();
+  $('#paper').innerHTML = '';
+  $('#resultWrap').hidden = true;
+  $('#metaHint').value = '';
+
+  /* الحقول المتكرّرة تبقى، والخاصة بالدرس تُخلى */
+  META_FIELDS.forEach(f => {
+    const inp = $('#m_' + f.key);
+    if (!inp || f.remember) return;
+    if (f.key === 'date') inp.value = new Date().toISOString().slice(0, 10);
+    else inp.value = '';
+    inp.classList.remove('err');
+  });
+
+  setStatus('جاهز لتحضير درس جديد — أدخل رقم الدرس وارفع صفحاته');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  const first = $('#m_lessonNo'); if (first) setTimeout(() => first.focus(), 400);
 }
 
 function doWord() {
@@ -333,6 +398,10 @@ function init() {
   $('#btnRegen').onclick = generate;
   $('#btnPrint').onclick = doPrint;
   $('#btnWord').onclick = doWord;
+  $('#btnNew').onclick = newLesson;
+  $('#btnZoomIn').onclick = () => setZoom((state.zoom || fitScale()) + 0.2);
+  $('#btnZoomOut').onclick = () => setZoom((state.zoom || fitScale()) - 0.2);
+  $('#btnZoomFit').onclick = () => setZoom(null);
 
   $('#btnSettings').onclick = openSettings;
   $('#btnCloseSettings').onclick = closeSettings;

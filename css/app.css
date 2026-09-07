@@ -98,8 +98,18 @@ button:disabled{ opacity:.5; pointer-events:none }
 
 /* ---------- عارض الورقة ---------- */
 #resultWrap{ margin-top:4px }
-.paper-scroll{ overflow-x:auto; padding-bottom:6px }
-.paper{ transform-origin:top center }
+.paper-scroll{ overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch }
+
+/* شريط التكبير */
+.zoombar{ display:flex; align-items:center; gap:6px; margin-inline-start:auto }
+.zoombar button{ width:34px; height:34px; border-radius:10px; background:#EEF2F9;
+  color:var(--navy); border:1.5px solid var(--line); font-size:18px; font-weight:800;
+  display:flex; align-items:center; justify-content:center }
+.zoombar .lvl{ min-width:56px; height:34px; padding:0 8px; border-radius:10px;
+  background:#EEF2F9; border:1.5px solid var(--line); color:var(--navy);
+  font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center }
+.toolbar .row2{ display:flex; gap:8px; width:100%; align-items:center; flex-wrap:wrap }
+.ghost.strong{ background:#E7EDF9; border-color:#C6D3EA; font-weight:800 }
 
 /* ---------- الإعدادات ---------- */
 .sheet-back{ position:fixed; inset:0; z-index:60; background:rgba(12,22,48,.5);

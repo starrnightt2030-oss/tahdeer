@@ -91,7 +91,18 @@
         تنزيل Word
       </button>
       <button class="ghost" id="btnRegen">إعادة التوليد</button>
-      <span class="hint-edit">يمكنك التعديل على أي نص في المعاينة قبل الحفظ</span>
+      <div class="row2">
+        <button class="ghost strong" id="btnNew">
+          <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+          تحضير درس جديد
+        </button>
+        <div class="zoombar">
+          <button id="btnZoomOut" title="تصغير" aria-label="تصغير">−</button>
+          <button class="lvl" id="btnZoomFit" title="ملء العرض">ملء العرض</button>
+          <button id="btnZoomIn" title="تكبير" aria-label="تكبير">+</button>
+        </div>
+      </div>
+      <span class="hint-edit">اضغط على أي نص في المعاينة لتعديله · استخدم + و − لتكبير الورقة</span>
     </div>
     <div class="paper-scroll"><div id="paper" class="paper"></div></div>
   </section>
