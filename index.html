@@ -67,18 +67,39 @@
 <div id="screenSubject" hidden>
   <div class="card subj-card">
     <div id="subjHead" class="subj-head"></div>
-    <button class="ghost tiny" id="btnEditSubj">تعديل بيانات المادة</button>
+    <div class="subj-acts">
+      <button class="ghost tiny" id="btnEditSubj">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M3 17.2V21h3.8L18 9.8 14.2 6zM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8L18.9 8.9z"/></svg>
+        تعديل بيانات المادة
+      </button>
+      <button class="ghost tiny danger" id="btnDelSubj">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2zm3 2v9h2v-9zm4 0v9h2v-9z"/></svg>
+        حذف المادة
+      </button>
+    </div>
   </div>
 
   <div id="subjTiles" class="tiles"></div>
 
   <section class="card">
-    <div class="card-head"><h2>الدروس</h2></div>
+    <div class="card-head"><h2>التحضيرات المحفوظة</h2></div>
+
+    <div class="les-head"><h3>دروس نظرية</h3><span id="cntPrep"></span></div>
     <div id="lessonList" class="les-list"></div>
-    <button class="primary big" id="btnNewLesson" style="margin-top:12px">
-      <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
-      تحضير درس جديد
-    </button>
+
+    <div class="les-head"><h3>مواضيع تدريب عملي</h3><span id="cntPrac"></span></div>
+    <div id="pracList" class="les-list"></div>
+
+    <div class="new-row">
+      <button class="primary" id="btnNewLesson">
+        <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+        تحضير درس نظري
+      </button>
+      <button class="primary" id="btnNewPrac">
+        <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+        تحضير تدريب عملي
+      </button>
+    </div>
   </section>
 
   <section class="card generate">
@@ -93,7 +114,8 @@
 <!-- ======================= منطقة العمل ======================= -->
 <div id="screenWork" hidden>
 <nav class="tabs" id="tabs">
-  <button class="tab on" data-mode="prep">تحضير درس</button>
+  <button class="tab on" data-mode="prep">تحضير نظري</button>
+  <button class="tab" data-mode="prac">تدريب عملي</button>
   <button class="tab" data-mode="plan">الخطة الزمنية</button>
   <button class="tab" data-mode="cover">غلاف المادة</button>
 </nav>
@@ -101,7 +123,7 @@
 <div id="modePrep">
   <!-- ======================= 1. بيانات الحصة ======================= -->
   <section class="card" id="cardMeta">
-    <div class="card-head"><span class="num">1</span><h2>بيانات الحصة</h2></div>
+    <div class="card-head"><span class="num">1</span><h2 id="cardMetaTitle">بيانات الحصة</h2></div>
     <div class="grid" id="metaGrid"></div>
     <label class="field full">
       <span>ملاحظات للمحضّر <em>(اختياري)</em></span>
@@ -111,7 +133,7 @@
 
   <!-- ======================= 2. ملف الدرس ======================= -->
   <section class="card" id="cardFiles">
-    <div class="card-head"><span class="num">2</span><h2>ملف الدرس</h2></div>
+    <div class="card-head"><span class="num">2</span><h2 id="cardFilesTitle">ملف الدرس</h2></div>
     <div class="drop" id="dropZone">
       <svg viewBox="0 0 24 24" width="34" height="34"><path fill="currentColor" d="M12 3 7 8h3v7h4V8h3zM5 18h14v2H5z"/></svg>
       <p><strong>اضغط لاختيار الملف</strong> أو اسحبه هنا</p>
@@ -275,6 +297,53 @@
   </div>
 </div>
 
+<!-- ======================= كاميرا داخل التطبيق =======================
+     مهم: input[capture] يفتح تطبيق الكاميرا فيُخرج المستخدم من التطبيق، وأندرويد
+     كثيرًا ما يعيد تحميل الصفحة عند الرجوع فتضيع الصور والبيانات. هذه الكاميرا
+     تعمل داخل الصفحة نفسها فلا يخرج المستخدم إطلاقًا. -->
+<div class="cam-back" id="camDlg" hidden>
+  <div class="cam-top">
+    <button class="cam-x" id="camClose" title="إغلاق">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
+    </button>
+    <span id="camCount">لم تُصوَّر صفحات بعد</span>
+    <button class="cam-flip" id="camFlip" title="تبديل الكاميرا">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20 5h-3.2l-1.8-2H9L7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m-8 13a5 5 0 1 1 0-10 5 5 0 0 1 0 10"/></svg>
+    </button>
+  </div>
+  <div class="cam-view">
+    <video id="camVideo" playsinline autoplay muted></video>
+    <p class="cam-msg" id="camMsg" hidden></p>
+  </div>
+  <div class="cam-strip" id="camStrip"></div>
+  <div class="cam-bar">
+    <button class="cam-shot" id="camShot" title="تصوير"><i></i></button>
+    <button class="primary" id="camDone">تم — إضافة الصور</button>
+  </div>
+</div>
+
+<!-- ======================= نافذة تأكيد داخل التطبيق =======================
+     لا نستعمل confirm() الأصلية: التطبيق المثبَّت على الهاتف قد يكتمها فترجع
+     false بلا أي رسالة، فيبدو زر الحذف كأنه معطَّل. -->
+<div class="sheet-back" id="askDlg" hidden>
+  <div class="sheet ask" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="sheet-head">
+      <h3 id="askTitle">تأكيد</h3>
+      <button class="icon-btn" id="askX" title="إغلاق">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <p class="ask-msg" id="askMsg"></p>
+      <div class="ask-acts">
+        <button class="primary danger" id="askYes">حذف</button>
+        <button class="ghost" id="askNo">إلغاء</button>
+        <button class="ghost" id="askCancel" hidden>تراجع</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="overlay" hidden>
   <div class="spinner"></div>
   <p id="overlayMsg">جارٍ العمل…</p>
@@ -290,9 +359,12 @@
 <script src="js/pages.js"></script>
 <script src="js/gemini.js"></script>
 <script src="js/render.js"></script>
+<script src="js/practical.js"></script>
 <script src="js/sheet.js"></script>
 <script src="js/plan.js"></script>
+<script src="js/camera.js"></script>
 <script src="js/library.js"></script>
+<script src="js/draft.js"></script>
 <script src="js/cover.js"></script>
 <script src="js/app.js"></script>
 </body>

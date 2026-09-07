@@ -1,11 +1,12 @@
 /* عامل الخدمة — يجعل التطبيق يعمل بدون إنترنت بعد أول فتح */
-const CACHE = 'tahdeer-v7';
+const CACHE = 'tahdeer-v10';
 const ASSETS = [
   './', './index.html',
   './css/app.css', './css/paper.css',
   './js/db.js', './js/schema.js', './js/icons.js', './js/zip.js', './js/docx.js',
   './js/pages.js', './js/gemini.js', './js/render.js',
-  './js/sheet.js', './js/plan.js', './js/cover.js', './js/library.js', './js/app.js',
+  './js/sheet.js', './js/plan.js', './js/cover.js', './js/library.js',
+  './js/practical.js', './js/camera.js', './js/draft.js', './js/app.js',
   './vendor/pdf.min.mjs', './vendor/pdf.worker.min.mjs',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'
