@@ -237,8 +237,12 @@ function buildDocumentXml(data, meta, id) {
   /* التوقيعات */
   const sw = Math.floor(CONTENT_W / SIGNATURES.length);
   b += wTable([
-    '<w:tr>' + SIGNATURES.map(s => wCell(wPara(s, { b: true, align: 'center', size: 10, color: navy }), { w: sw, shade: '#EDF1F9' })).join('') + '</w:tr>',
-    '<w:tr>' + SIGNATURES.map(() => wCell([wPara(''), wPara('')], { w: sw })).join('') + '</w:tr>'
+    '<w:tr>' + SIGNATURES.map(sig => wCell(wPara(sig.label,
+      { b: true, align: 'center', size: 9.5, color: navy }), { w: sw, shade: '#EDF1F9' })).join('') + '</w:tr>',
+    '<w:tr>' + SIGNATURES.map(sig => wCell([
+      wPara(sig.nameFrom ? (meta[sig.nameFrom] || '') : '', { align: 'center', size: 9.5, b: true, after: 0 }),
+      wPara(''), wPara('')
+    ], { w: sw, vAlign: 'top' })).join('') + '</w:tr>'
   ], { grid: SIGNATURES.map(() => sw) });
 
   const sect = '<w:sectPr>' +

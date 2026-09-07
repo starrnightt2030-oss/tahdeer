@@ -7,7 +7,6 @@ const IDENTITY_DEFAULT = {
   org:        'شركة ترسانة الإسكندرية',
   dept1:      'الإدارة العامة لمركز التدريب',
   dept2:      'إدارة التعليم النظري',
-  ribbon:     'نظري ٣',
   formCode:   'F-TH-04',
   edition:    '١',
   revision:   '٠',
@@ -29,6 +28,8 @@ const META_FIELDS = [
   { key: 'subject',  label: 'المادة',    type: 'text', ph: 'أساسيات الهندسة الكهربائية',      remember: true, req: true },
   { key: 'grade',    label: 'الصف',      type: 'text', ph: 'الصف الأول الثانوي الصناعي',      remember: true, req: true },
   { key: 'dept',     label: 'القسم',     type: 'text', ph: 'التركيبات الكهربائية',            remember: true  },
+  { key: 'teacher',  label: 'اسم المدرس', short: 'المدرس', type: 'text',
+    ph: 'الاسم كما يُكتب في التوقيع', remember: true },
   { key: 'lang',     label: 'لغة المحتوى', type: 'select', remember: true, noPrint: true,
     options: [
       { v: 'auto', t: 'تلقائي حسب المادة' },
@@ -40,7 +41,7 @@ const META_FIELDS = [
 /* الحقول التي تظهر في شريط المعلومات العلوي (بالترتيب من اليمين) */
 const STRIP_FIELDS = ['date', 'week', 'period', 'duration', 'unit'];
 /* الصفوف الثلاثة تحت الشريط */
-const ROW_FIELDS   = ['subject', 'grade', 'dept'];
+const ROW_FIELDS   = ['subject', 'grade', 'dept', 'teacher'];
 
 /* ---------- أقسام يولّدها الذكاء الاصطناعي ---------- */
 /* kind:
@@ -105,7 +106,11 @@ const BLANK_PANELS = [
   { key: 'teacherNotes', label: 'ملاحظات المعلم', icon: 'clip', place: 'row2', lines: 5 }
 ];
 
-const SIGNATURES = ['المعلّم', 'رئيس القسم', 'مدير عام مركز التدريب'];
+const SIGNATURES = [
+  { label: 'المدرس',                              nameFrom: 'teacher' },
+  { label: 'مدير إدارة التعليم النظري' },
+  { label: 'مدير إدارة جودة وتكنولوجيا التعليم' }
+];
 
 const ORDINALS = ['', 'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن',
   'التاسع', 'العاشر', 'الحادي عشر', 'الثاني عشر', 'الثالث عشر', 'الرابع عشر', 'الخامس عشر',

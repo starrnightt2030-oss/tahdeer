@@ -28,4 +28,4 @@ function svgIcon(name, size, cls) {
 }
 
 const STRIP_ICONS = { date: 'cal', week: 'week', period: 'clock', duration: 'clock', unit: 'unit' };
-const ROW_ICONS   = { subject: 'book', grade: 'grade', dept: 'bolt' };
+const ROW_ICONS   = { subject: 'book', grade: 'grade', dept: 'bolt', teacher: 'clip' };

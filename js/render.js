@@ -75,8 +75,7 @@ class Pager {
     /* الشريط العلوي */
     const top = el('div', 'pg-top');
     top.innerHTML =
-      '<i class="slash s1"></i><i class="slash s2"></i><i class="slash s3"></i><i class="slash s4"></i>' +
-      `<div class="ribbon"><span class="brace">{</span><b>${escHtml(id.ribbon)}</b><span class="brace">}</span></div>`;
+      '<i class="slash s1"></i><i class="slash s2"></i><i class="slash s3"></i><i class="slash s4"></i>';
     page.appendChild(top);
 
     /* الجسم */
@@ -98,7 +97,7 @@ class Pager {
       `<div class="o1">${escHtml(id.org)}</div>` +
       `<div class="o2">${escHtml(id.dept1)}</div>` +
       `<div class="o3">${escHtml(id.dept2)}</div>`;
-    head.appendChild(logo); head.appendChild(titles); head.appendChild(org);
+    head.appendChild(org); head.appendChild(titles); head.appendChild(logo);
     main.appendChild(head);
 
     /* عنوان الدرس */
@@ -107,10 +106,11 @@ class Pager {
     lt.appendChild(ed('span', '', data.lessonTitle || '—', 'lessonTitle'));
     main.appendChild(lt);
 
-    /* شريط المعلومات */
-    main.appendChild(this.strip());
-    /* صفوف المادة/الصف/القسم */
-    main.appendChild(this.rows());
+    /* بيانات الحصة والمادة تظهر في الصفحة الأولى فقط */
+    if (this.pages.length === 0) {
+      main.appendChild(this.strip());
+      main.appendChild(this.rows());
+    }
 
     /* منطقة التدفق */
     const flow = el('div', 'flow');
@@ -177,7 +177,7 @@ class Pager {
       const f = META_FIELDS.find(x => x.key === k);
       const line = el('div', 'rowline');
       line.innerHTML =
-        `<div class="tag"><span>${escHtml(f.label)}</span>${svgIcon(ROW_ICONS[k] || 'book', 15, 'ic')}</div>`;
+        `<div class="tag"><span>${escHtml(f.short || f.label)}</span>${svgIcon(ROW_ICONS[k] || 'book', 15, 'ic')}</div>`;
       line.appendChild(ed('div', 'val', this.meta[k] || '', 'meta.' + k));
       r.appendChild(line);
     });
@@ -437,16 +437,16 @@ function renderDocument(root, data, meta, id) {
   BLANK_PANELS.forEach(bp => r2.appendChild(blankPanel(bp)));
   if (r2.children.length) pg.push(r2);
 
-  /* --- التوقيعات (تُضاف إن اتسعت الصفحة) --- */
+  /* --- التوقيعات: تُوضع في نهاية كل تحضير، وتفتح صفحة إن لم تتسع --- */
   const sg = el('div', 'signs');
-  SIGNATURES.forEach(s => {
+  SIGNATURES.forEach(sig => {
     const b = el('div', 's');
-    b.innerHTML = `<b>${escHtml(s)}</b><i></i>`;
+    const nm = sig.nameFrom ? (meta[sig.nameFrom] || '') : '';
+    b.innerHTML = `<b>${escHtml(sig.label)}</b>` +
+      (nm ? `<u>${escHtml(nm)}</u>` : '') + '<i></i>';
     sg.appendChild(b);
   });
-  const before = pg.pages.length;
-  pg.flow.appendChild(sg);
-  if (pg.overflowing()) pg.flow.removeChild(sg);   /* لا نفتح صفحة جديدة لأجل التوقيعات فقط */
+  pg.push(sg);
 
   pg.finish();
   return pg.pages.length;
