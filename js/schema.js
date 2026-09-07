@@ -112,6 +112,67 @@ const SIGNATURES = [
   { label: 'مدير إدارة جودة وتكنولوجيا التعليم' }
 ];
 
+/* ---------- حقول الخطة الزمنية ---------- */
+const PLAN_FIELDS = [
+  { key: 'subject',   label: 'المادة',            type: 'text', ph: 'أساسيات الهندسة الكهربائية', remember: true, req: true },
+  { key: 'grade',     label: 'الصف',              type: 'text', ph: 'الصف الأول الثانوي الصناعي', remember: true, req: true },
+  { key: 'dept',      label: 'القسم',             type: 'text', ph: 'التركيبات الكهربائية',       remember: true },
+  { key: 'teacher',   label: 'اسم المدرس',        type: 'text', ph: '',                            remember: true },
+  { key: 'year',      label: 'العام الدراسي',     type: 'text', ph: '٢٠٢٦ / ٢٠٢٧',                remember: true },
+  { key: 'term',      label: 'الفصل الدراسي',     type: 'select', remember: true,
+    options: [{ v: 'الفصل الدراسي الأول', t: 'الفصل الدراسي الأول' },
+              { v: 'الفصل الدراسي الثاني', t: 'الفصل الدراسي الثاني' }] },
+  { key: 'startDate', label: 'بداية الدراسة',     type: 'date', ph: '',                            remember: false, req: true },
+  { key: 'weeks',     label: 'عدد الأسابيع',      type: 'number', ph: '١٥',                        remember: true, req: true }
+];
+
+/* أعمدة جدول الخطة — العرض بالملّيمتر على ورقة A4 عرضية */
+const PLAN_COLUMNS = [
+  { key: 'no',    label: 'م',          w: 10, align: 'center' },
+  { key: 'week',  label: 'الأسبوع',    w: 26, align: 'center' },
+  { key: 'date',  label: 'التاريخ',    w: 24, align: 'center' },
+  { key: 'unit',  label: 'الوحدة',     w: 30, align: 'center' },
+  { key: 'items', label: 'المحتوى',    w: 145, align: 'right' },
+  { key: 'notes', label: 'الملاحظات',  w: 42, align: 'right' }
+];
+
+const PLAN_SIGNATURES = [
+  { label: 'المدرس', nameFrom: 'teacher' },
+  { label: 'رئيس القسم' },
+  { label: 'مدير إدارة التعليم النظري' },
+  { label: 'مدير إدارة جودة وتكنولوجيا التعليم' },
+  { label: 'المدير العام لمركز التدريب' }
+];
+
+/* ---------- حقول غلاف المادة ---------- */
+const COVER_FIELDS = [
+  { key: 'subject', label: 'المادة',        type: 'text', ph: 'أساسيات الهندسة الكهربائية', remember: true, req: true },
+  { key: 'grade',   label: 'الصف الدراسي',  type: 'text', ph: 'الصف الأول الثانوي الصناعي', remember: true, req: true },
+  { key: 'dept',    label: 'القسم / التخصص', type: 'text', ph: 'التركيبات الكهربائية',      remember: true },
+  { key: 'teacher', label: 'اسم المدرس',    type: 'text', ph: '',                            remember: true, req: true },
+  { key: 'year',    label: 'العام الدراسي', type: 'text', ph: '٢٠٢٦ / ٢٠٢٧',                remember: true, req: true },
+  { key: 'term',    label: 'الفصل الدراسي', type: 'select', remember: true,
+    options: [{ v: 'الفصل الدراسي الأول', t: 'الفصل الدراسي الأول' },
+              { v: 'الفصل الدراسي الثاني', t: 'الفصل الدراسي الثاني' }] }
+];
+
+const WEEK_NAMES = ['', 'الأسبوع الأول', 'الأسبوع الثاني', 'الأسبوع الثالث', 'الأسبوع الرابع',
+  'الأسبوع الخامس', 'الأسبوع السادس', 'الأسبوع السابع', 'الأسبوع الثامن', 'الأسبوع التاسع',
+  'الأسبوع العاشر', 'الأسبوع الحادي عشر', 'الأسبوع الثاني عشر', 'الأسبوع الثالث عشر',
+  'الأسبوع الرابع عشر', 'الأسبوع الخامس عشر', 'الأسبوع السادس عشر', 'الأسبوع السابع عشر',
+  'الأسبوع الثامن عشر', 'الأسبوع التاسع عشر', 'الأسبوع العشرون'];
+const weekName = n => WEEK_NAMES[n] || ('الأسبوع ' + toArabicDigits(n));
+
+/* سبت الأسبوع رقم n بدءًا من تاريخ بداية الدراسة */
+function weekSaturday(startISO, n) {
+  if (!startISO) return '';
+  const d = new Date(startISO + 'T00:00:00');
+  if (isNaN(d)) return '';
+  d.setDate(d.getDate() - ((d.getDay() + 1) % 7));   /* السبت = 6 → أرجع لأقرب سبت */
+  d.setDate(d.getDate() + (n - 1) * 7);
+  return toArabicDigits(d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate());
+}
+
 const ORDINALS = ['', 'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن',
   'التاسع', 'العاشر', 'الحادي عشر', 'الثاني عشر', 'الثالث عشر', 'الرابع عشر', 'الخامس عشر',
   'السادس عشر', 'السابع عشر', 'الثامن عشر', 'التاسع عشر', 'العشرون'];

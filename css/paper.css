@@ -211,8 +211,9 @@ ul.plain li::marker{ color:var(--red) }
     width:auto !important; height:auto !important; overflow:visible !important }
 
   /* كل ما هو خارج الورقة يُخفى بالاسم — لا بالبنية */
-  .topbar, .card, .toolbar, .sheet-back, .overlay, .toast,
-  .pick-row, .files, .status{ display:none !important }
+  .topbar, .tabs, .card, .toolbar, .sheet-back, .overlay, .toast,
+  .pick-row, .files, .status, .wk-list,
+  #modePrep, #modePlan, #modeCover{ display:none !important }
 
   /* سلسلة الحاويات التي تحتوي الورقة تُحيَّد بالكامل */
   .wrap, #resultWrap, .paper-scroll{
@@ -225,11 +226,79 @@ ul.plain li::marker{ color:var(--red) }
   .paper{ display:block !important; gap:0 !important; width:auto !important;
     height:auto !important; transform:none !important; overflow:visible !important }
 
+  /* فاصل قبل كل صفحة تالية — لا بعد الأخيرة (يمنع صفحة فارغة زائدة) */
   .page{ box-shadow:none !important; border-radius:0 !important;
     break-inside:avoid; page-break-inside:avoid;
-    break-after:page; page-break-after:always }
-  .page:last-child{ break-after:auto; page-break-after:auto }
+    break-after:auto; page-break-after:auto }
+  .page + .page{ break-before:page; page-break-before:always }
 
   [contenteditable]{ outline:none !important }
   *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important }
 }
+
+/* =========================================================================
+   ورقة عرضية (الخطة الزمنية)
+   ========================================================================= */
+.page.land{ width:297mm; height:210mm }
+.page.land .head .titles h1{ font-size:7mm }
+.page.land .pg-main{ padding:3mm 6mm 2.5mm }
+
+/* شريط بيانات الخطة */
+.pl-meta{ display:flex; flex-wrap:wrap; gap:1.6mm 2.4mm; margin:1mm 0 2mm }
+.pl-meta .m{ border:.4mm solid var(--line); border-radius:2mm; background:#fff;
+  padding:1mm 2.4mm; font-size:3.2mm; display:flex; gap:1.4mm; align-items:baseline }
+.pl-meta .m .lab{ color:var(--navy); font-weight:700 }
+.pl-meta .m b{ font-weight:800 }
+
+/* جدول الخطة */
+table.tbl.pl{ table-layout:fixed; font-size:3.1mm; margin:0 }
+table.tbl.pl th{ padding:1.3mm 1mm; font-size:3.2mm }
+table.tbl.pl td{ padding:1.2mm 1.6mm; vertical-align:top; text-align:right }
+table.tbl.pl td.c{ text-align:center; font-weight:700 }
+table.tbl.pl td.n{ color:#3c4a68 }
+table.tbl.pl tbody tr:nth-child(even) td{ background:var(--soft2) }
+.pl-items{ display:flex; flex-direction:column; gap:1mm }
+.pl-item{ line-height:1.5 }
+.pl-item b{ display:block; font-weight:800; color:var(--navy); font-size:3.3mm }
+.pl-item .ds{ display:block; font-size:3mm; color:#33415c }
+
+/* =========================================================================
+   غلاف المادة
+   ========================================================================= */
+.page.cover .pg-main{ padding:0 12mm 6mm; justify-content:flex-start; overflow:hidden }
+.page.cover .flow{ gap:0; overflow:visible }
+.page.cover .wm-geo{ bottom:4mm; left:-16mm; width:118mm; opacity:.055 }
+
+.cv-head{ display:flex; align-items:center; justify-content:space-between;
+  gap:6mm; padding:8mm 0 0 }
+.cv-head .org{ text-align:right; line-height:1.6 }
+.cv-head .org .o1{ font-size:6.4mm; font-weight:800; color:var(--navy) }
+.cv-head .org .o2{ font-size:4.4mm; font-weight:700; color:var(--red) }
+.cv-head .org .o3{ font-size:4mm; font-weight:700; color:var(--navy);
+  display:flex; justify-content:flex-end; align-items:center; gap:2mm }
+.cv-head .org .o3::after{ content:""; width:8mm; height:.8mm; background:var(--red); border-radius:1mm }
+.cv-head .logo{ width:34mm; height:34mm; flex:0 0 auto; display:flex;
+  align-items:center; justify-content:center }
+.cv-head .logo img{ width:100%; height:100%; object-fit:contain }
+
+.cv-hero{ margin:26mm 0 0; text-align:center; position:relative; z-index:2 }
+.cv-hero .kicker{ font-size:4.6mm; font-weight:700; color:var(--red); letter-spacing:.4mm }
+.cv-hero .subj{ margin:4mm 0 0; font-size:13mm; font-weight:800; color:var(--navy); line-height:1.18 }
+.cv-hero .rule{ width:70mm; height:1.4mm; background:var(--red); border-radius:1mm; margin:6mm auto }
+.cv-hero .grade{ font-size:7mm; font-weight:800; color:var(--navy) }
+.cv-hero .dept{ margin-top:2mm; font-size:5mm; font-weight:700; color:#3c4a68 }
+
+.cv-info{ margin:26mm auto 0; display:grid; grid-template-columns:repeat(3,1fr);
+  gap:4mm; position:relative; z-index:2 }
+.cv-info .ci{ border:.5mm solid var(--line); border-radius:3mm; background:#fff;
+  padding:4mm 3mm; display:flex; flex-direction:column; align-items:center;
+  gap:2mm; text-align:center }
+.cv-info .ci .ico{ width:11mm; height:11mm; border-radius:2.6mm; background:var(--navy);
+  color:#fff; display:flex; align-items:center; justify-content:center }
+.cv-info .ci .tx span{ display:block; font-size:3.3mm; font-weight:700; color:var(--red) }
+.cv-info .ci .tx b{ display:block; margin-top:1mm; font-size:4.4mm; font-weight:800; color:var(--navy) }
+
+.cv-foot{ margin-top:auto; display:flex; align-items:center; gap:4mm;
+  padding-bottom:2mm; position:relative; z-index:2 }
+.cv-foot .l{ flex:1; height:.5mm; background:var(--line); border-radius:1mm }
+.cv-foot .t{ font-size:3.8mm; font-weight:700; color:var(--navy) }

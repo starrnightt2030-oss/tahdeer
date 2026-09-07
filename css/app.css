@@ -148,3 +148,39 @@ button:disabled{ opacity:.5; pointer-events:none }
   .brand-txt span{ display:none }
   .toolbar{ top:58px }
 }
+
+/* ---------- تبويبات الوظائف ---------- */
+.tabs{ position:sticky; top:0; z-index:39; display:flex; gap:6px; padding:8px 12px;
+  background:var(--card); box-shadow:0 2px 8px rgba(20,40,90,.06); overflow-x:auto }
+.tabs .tab{ flex:1 1 auto; white-space:nowrap; padding:10px 14px; border-radius:12px;
+  font-size:14px; font-weight:700; color:var(--mut); background:#F2F5FA;
+  border:1.5px solid transparent; transition:.15s }
+.tabs .tab.on{ background:var(--navy); color:#fff; border-color:var(--navy) }
+.topbar{ box-shadow:none }
+
+/* ---------- محرّر أسابيع الخطة ---------- */
+.wk-list{ display:flex; flex-direction:column; gap:10px; margin-top:10px }
+.wk{ border:1.5px solid var(--line); border-radius:14px; background:#FAFCFF; padding:10px }
+.wk-head{ display:flex; align-items:center; gap:8px; margin-bottom:8px }
+.wk-head .wk-n{ width:24px; height:24px; border-radius:8px; background:var(--navy); color:#fff;
+  font-size:12.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex:0 0 auto }
+.wk-head b{ font-size:14px; color:var(--navy); font-weight:800 }
+.wk-head .wk-date{ margin-inline-start:auto; font-size:12px; font-weight:700; color:var(--mut);
+  background:#EEF2F9; border-radius:8px; padding:3px 8px }
+.wk-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.wk-items{ display:flex; flex-direction:column; gap:8px; margin-top:8px }
+.wk-item{ display:grid; grid-template-columns:1fr 1.4fr 30px; gap:8px; align-items:end }
+.wk-del{ width:30px; height:40px; border-radius:10px; background:#FDECEE; color:var(--red);
+  font-size:18px; font-weight:800; border:1.5px solid #F6D5DA }
+.wk-add{ margin-top:8px; width:100%; padding:8px; border-radius:10px; background:#EEF2F9;
+  color:var(--navy); font-size:13px; font-weight:700; border:1.5px dashed #C6D3EA }
+.field.sm > span{ font-size:11.5px }
+.field.sm input{ padding:9px 10px; font-size:13.5px; border-radius:10px }
+
+@media (max-width:520px){
+  .wk-grid{ grid-template-columns:1fr }
+  .wk-item{ grid-template-columns:1fr 34px; row-gap:6px }
+  .wk-item > *:nth-child(1){ grid-area:1 / 1 }
+  .wk-item > *:nth-child(3){ grid-area:1 / 2 }
+  .wk-item > *:nth-child(2){ grid-area:2 / 1 / 3 / 3 }
+}

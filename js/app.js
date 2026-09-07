@@ -3,7 +3,8 @@
    ========================================================================= */
 const LS = {
   key: 'thd.apiKey', model: 'thd.model', id: 'thd.identity',
-  meta: 'thd.meta', last: 'thd.last'
+  meta: 'thd.meta', last: 'thd.last',
+  plan: 'thd.plan', planRows: 'thd.planRows', cover: 'thd.cover'
 };
 const $ = s => document.querySelector(s);
 const store = {
@@ -24,6 +25,7 @@ const state = {
   pages: [],
   data: null,
   zoom: null,               /* null = ملء العرض */
+  mode: 'prep',             /* prep | plan | cover */
   id: Object.assign({}, IDENTITY_DEFAULT, store.get(LS.id, {}))
 };
 
@@ -42,6 +44,53 @@ function setStatus(msg, err) {
   const s = $('#status');
   s.textContent = msg || '';
   s.className = 'status' + (err ? ' err' : '');
+}
+
+/* ---------------- نموذج حقول عام ---------------- */
+function buildForm(containerSel, fields, prefix, savedKey) {
+  const g = $(containerSel);
+  const saved = store.get(savedKey, {});
+  g.innerHTML = '';
+  fields.forEach(f => {
+    const lab = document.createElement('label');
+    lab.className = 'field';
+    lab.innerHTML = `<span>${f.label}${(f.req || f.type === 'select') ? '' : ' <em>(اختياري)</em>'}</span>`;
+    let inp;
+    if (f.type === 'select') {
+      inp = document.createElement('select');
+      inp.innerHTML = f.options.map(o => `<option value="${o.v}">${o.t}</option>`).join('');
+      inp.value = (f.remember && saved[f.key]) || f.options[0].v;
+    } else {
+      inp = document.createElement('input');
+      inp.type = f.type; inp.placeholder = f.ph || '';
+      if (f.remember && saved[f.key] != null) inp.value = saved[f.key];
+      if (f.key === 'startDate' && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
+      if (f.key === 'weeks' && !inp.value) inp.value = 15;
+    }
+    inp.id = prefix + f.key;
+    inp.addEventListener('input', () => inp.classList.remove('err'));
+    lab.appendChild(inp);
+    g.appendChild(lab);
+  });
+}
+
+function readForm(fields, prefix, savedKey) {
+  const m = {};
+  fields.forEach(f => { const e = $(prefix + f.key); m[f.key] = e ? (e.value || '').trim() : ''; });
+  if (savedKey) {
+    const keep = store.get(savedKey, {});
+    fields.filter(f => f.remember).forEach(f => { keep[f.key] = m[f.key]; });
+    store.set(savedKey, keep);
+  }
+  return m;
+}
+
+function validateForm(fields, prefix, m) {
+  let ok = true;
+  fields.filter(f => f.req).forEach(f => {
+    if (!m[f.key]) { const e = $(prefix + f.key); if (e) e.classList.add('err'); ok = false; }
+  });
+  return ok;
 }
 
 /* ---------------- 1) نموذج بيانات الحصة ---------------- */
@@ -246,6 +295,112 @@ function setZoom(z) {
 window.addEventListener('resize', () => { if (state.data) fitPaper(); });
 window.addEventListener('orientationchange', () => { if (state.data) setTimeout(fitPaper, 250); });
 
+/* ---------------- الوظائف الثلاث ---------------- */
+const MODE_TITLE = { prep: 'تحضير احترافي وفق النموذج المعتمد',
+  plan: 'الخطة الزمنية للفصل الدراسي', cover: 'غلاف المادة' };
+
+/* مقاس الورق للطباعة يتغيّر حسب الوظيفة */
+function setPageSize(landscape) {
+  let st = document.getElementById('pageSizeCss');
+  if (!st) { st = document.createElement('style'); st.id = 'pageSizeCss'; document.head.appendChild(st); }
+  st.textContent = '@page{ size:A4 ' + (landscape ? 'landscape' : 'portrait') + '; margin:0 }';
+}
+
+function setMode(m) {
+  state.mode = m;
+  ['prep', 'plan', 'cover'].forEach(k => {
+    const sec = $('#mode' + k[0].toUpperCase() + k.slice(1));
+    if (sec) sec.hidden = (k !== m);
+  });
+  document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  const sub = document.querySelector('.brand-txt span');
+  if (sub) sub.textContent = MODE_TITLE[m];
+
+  /* أزرار شريط الأدوات حسب الوظيفة */
+  document.querySelectorAll('.only-prep').forEach(e => { e.hidden = (m !== 'prep'); });
+  document.querySelectorAll('.only-doc').forEach(e => { e.hidden = (m === 'cover'); });
+
+  /* كل وظيفة لها معاينتها — نُخلي الورقة عند التبديل */
+  $('#paper').innerHTML = '';
+  $('#resultWrap').hidden = true;
+  setPageSize(m === 'plan');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ---------- الخطة الزمنية ---------- */
+function planSync() {
+  plan.meta = readForm(PLAN_FIELDS, '#p_', LS.plan);
+  planEnsureRows(plan.meta.weeks);
+  planRenderEditor();
+  store.set(LS.planRows, plan.rows);
+}
+
+function buildPlanUI() {
+  buildForm('#planGrid', PLAN_FIELDS, '#p_'.slice(1), LS.plan);
+  const saved = store.get(LS.planRows, null);
+  if (Array.isArray(saved) && saved.length) plan.rows = saved;
+  plan.meta = readForm(PLAN_FIELDS, '#p_', null);
+  planEnsureRows(plan.meta.weeks);
+  planRenderEditor();
+  ['weeks', 'startDate'].forEach(k => {
+    const e = $('#p_' + k);
+    if (e) e.addEventListener('change', planSync);
+    if (e) e.addEventListener('input', () => { clearTimeout(planSync._t); planSync._t = setTimeout(planSync, 400); });
+  });
+}
+
+function makePlan() {
+  plan.meta = readForm(PLAN_FIELDS, '#p_', LS.plan);
+  const st = $('#planStatus');
+  if (!validateForm(PLAN_FIELDS, '#p_', plan.meta)) {
+    st.textContent = 'أكمل الحقول المطلوبة أولًا'; st.className = 'status err'; return;
+  }
+  planEnsureRows(plan.meta.weeks);
+  store.set(LS.planRows, plan.rows);
+  const filled = plan.rows.filter(r => r.items.some(i => (i.name || '').trim())).length;
+  if (!filled) {
+    st.textContent = 'اكتب اسم درس واحد على الأقل في محتوى الأسابيع'; st.className = 'status err'; return;
+  }
+  $('#resultWrap').hidden = false;
+  state.zoom = null;
+  const n = renderPlan($('#paper'), plan, state.id);
+  bindPlainEdits();
+  fitPaper();
+  $('#resultWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  st.textContent = `الخطة جاهزة في ${toArabicDigits(n)} ${n === 1 ? 'صفحة' : 'صفحات'}`;
+  st.className = 'status';
+}
+
+/* ---------- غلاف المادة ---------- */
+function buildCoverUI() { buildForm('#coverGrid', COVER_FIELDS, '#c_'.slice(1), LS.cover); }
+
+function makeCover() {
+  const m = readForm(COVER_FIELDS, '#c_', LS.cover);
+  const st = $('#coverStatus');
+  if (!validateForm(COVER_FIELDS, '#c_', m)) {
+    st.textContent = 'أكمل الحقول المطلوبة أولًا'; st.className = 'status err'; return;
+  }
+  state.cover = m;
+  $('#resultWrap').hidden = false;
+  state.zoom = null;
+  renderCover($('#paper'), m, state.id);
+  bindPlainEdits();
+  fitPaper();
+  $('#resultWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  st.textContent = 'الغلاف جاهز — يمكنك تعديل أي نص عليه قبل الطباعة';
+  st.className = 'status';
+}
+
+/* تحرير حر داخل الخطة/الغلاف (بدون ربط ببيانات) */
+function bindPlainEdits() {
+  $('#paper').querySelectorAll('[contenteditable]').forEach(n => {
+    n.addEventListener('paste', e => {
+      e.preventDefault();
+      document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text'));
+    });
+  });
+}
+
 /* ---------------- 5) الإعدادات ---------------- */
 const ID_FIELDS = [
   { k: 'org',       l: 'اسم الجهة' },
@@ -317,8 +472,11 @@ function download(blob, name) {
 }
 
 function fileBase() {
-  const t = (state.data && state.data.lessonTitle) || 'تحضير';
-  return `تحضير - ${t}`.replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
+  let t;
+  if (state.mode === 'plan') t = 'الخطة الزمنية - ' + (plan.meta.subject || '');
+  else if (state.mode === 'cover') t = 'غلاف - ' + ((state.cover || {}).subject || '');
+  else t = 'تحضير - ' + ((state.data && state.data.lessonTitle) || '');
+  return t.replace(/[\\/:*?"<>|]/g, '-').trim().slice(0, 80);
 }
 
 function doPrint() {
@@ -360,7 +518,9 @@ function newLesson() {
 
 function doWord() {
   try {
-    const blob = buildDocx(state.data, state.meta, state.id);
+    const blob = (state.mode === 'plan')
+      ? buildPlanDocx(plan, state.id)
+      : buildDocx(state.data, state.meta, state.id);
     download(blob, fileBase() + '.docx');
     toast('تم تنزيل ملف Word');
   } catch (e) {
@@ -392,6 +552,16 @@ function init() {
     e.preventDefault(); drop.classList.remove('over');
   }));
   drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+
+  buildPlanUI();
+  buildCoverUI();
+  document.querySelectorAll('#tabs .tab').forEach(b => {
+    b.onclick = () => setMode(b.dataset.mode);
+  });
+  $('#btnPlan').onclick = makePlan;
+  $('#btnCover').onclick = makeCover;
+
+  setMode('prep');
 
   $('#btnGenerate').onclick = generate;
   $('#btnRegen').onclick = generate;

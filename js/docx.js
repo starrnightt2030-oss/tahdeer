@@ -325,3 +325,118 @@ function buildDocx(data, meta, id) {
   ];
   return makeZip(files, CT + '.document');
 }
+
+/* =========================================================================
+   الخطة الزمنية — ملف Word عرضي (A4 landscape)
+   ========================================================================= */
+const TW_L = { pageW: 16838, pageH: 11906, marg: 680 };
+const PLAN_W = TW_L.pageW - TW_L.marg * 2;
+
+function buildPlanDocumentXml(p, id) {
+  const navy = id.navy, red = id.red, meta = p.meta;
+  const total = PLAN_COLUMNS.reduce((a, c) => a + c.w, 0);
+  const grid = PLAN_COLUMNS.map(c => Math.round(PLAN_W * c.w / total));
+  let b = '';
+
+  /* الهوية */
+  b += wTable([
+    `<w:tr>${wCell([
+      wPara(id.org, { b: true, size: 13, color: navy, align: 'center', after: 0 }),
+      wPara(id.dept1, { b: true, size: 10.5, color: red, align: 'center', before: 0, after: 0 }),
+      wPara(id.dept2, { size: 10, color: navy, align: 'center', before: 0 })
+    ], { w: PLAN_W })}</w:tr>`,
+    `<w:tr>${wCell([
+      wPara('الخطة الزمنية — ' + (meta.subject || ''), { b: true, size: 15, color: '#FFFFFF', align: 'center', after: 0 }),
+      wPara((meta.term || '') + '   ·   العام الدراسي ' + (meta.year || ''),
+        { b: true, size: 11, color: '#FFFFFF', align: 'center', before: 0 })
+    ], { w: PLAN_W, shade: navy })}</w:tr>`
+  ], { border: navy, grid: [PLAN_W], w: PLAN_W }) + gap();
+
+  /* شريط البيانات */
+  const info = [['المادة', meta.subject], ['الصف', meta.grade], ['القسم', meta.dept],
+                ['العام الدراسي', meta.year], ['الفصل الدراسي', meta.term], ['المدرس', meta.teacher]];
+  const cw = Math.floor(PLAN_W / 12), vw = Math.floor(PLAN_W / 6) - cw;
+  let ir = '';
+  info.forEach(x => {
+    ir += wCell(wPara(x[0], { b: true, size: 9, color: navy }), { w: cw, shade: '#EDF1F9' }) +
+          wCell(wPara(x[1] || '—', { size: 9 }), { w: vw });
+  });
+  b += wTable([ir], { grid: [cw, vw, cw, vw, cw, vw, cw, vw, cw, vw, cw, vw], w: PLAN_W }) + gap();
+
+  /* الجدول */
+  const hr = '<w:tr><w:trPr><w:tblHeader/></w:trPr>' + PLAN_COLUMNS.map((c, k) =>
+    wCell(wPara(c.label, { b: true, color: '#FFFFFF', align: 'center', size: 9.5 }),
+      { w: grid[k], shade: navy })).join('') + '</w:tr>';
+
+  const rows = p.rows.map((r, i) => {
+    const items = (r.items || []).filter(x => (x.name || '').trim() || (x.desc || '').trim());
+    const inner = items.length ? [] : [wPara('')];
+    items.forEach(it => {
+      if (it.name) inner.push(wPara(it.name, { b: true, color: navy, size: 9.5, after: 0 }));
+      if (it.desc) inner.push(wPara(it.desc, { size: 9, before: 0 }));
+    });
+    const shade = i % 2 ? '#F3F6FC' : null;
+    const byKey = {
+      no:    () => wCell(wPara(toArabicDigits(i + 1), { align: 'center', size: 9.5, b: true }), { w: 0, shade }),
+      week:  () => wCell(wPara(weekName(i + 1), { align: 'center', size: 9.5, b: true }), { w: 0, shade }),
+      date:  () => wCell(wPara(weekSaturday(meta.startDate, i + 1), { align: 'center', size: 9.5 }), { w: 0, shade }),
+      unit:  () => wCell(wPara(r.unit || '', { align: 'center', size: 9.5 }), { w: 0, shade }),
+      items: () => wCell(inner, { w: 0, shade, vAlign: 'top' }),
+      notes: () => wCell(wPara(r.notes || '', { size: 9 }), { w: 0, shade, vAlign: 'top' })
+    };
+    return '<w:tr>' + PLAN_COLUMNS.map((c, k) => {
+      const cell = byKey[c.key]();
+      return cell.replace('<w:tcW w:w="0" w:type="auto"/>', `<w:tcW w:w="${grid[k]}" w:type="dxa"/>`);
+    }).join('') + '</w:tr>';
+  });
+  b += wTable([hr, ...rows], { grid, w: PLAN_W }) + gap(180);
+
+  /* التوقيعات الخمسة */
+  const sw = Math.floor(PLAN_W / PLAN_SIGNATURES.length);
+  b += wTable([
+    '<w:tr>' + PLAN_SIGNATURES.map(sig => wCell(wPara(sig.label,
+      { b: true, align: 'center', size: 9, color: navy }), { w: sw, shade: '#EDF1F9' })).join('') + '</w:tr>',
+    '<w:tr>' + PLAN_SIGNATURES.map(sig => wCell([
+      wPara(sig.nameFrom ? (meta[sig.nameFrom] || '') : '', { align: 'center', size: 9, b: true, after: 0 }),
+      wPara(''), wPara('')
+    ], { w: sw, vAlign: 'top' })).join('') + '</w:tr>'
+  ], { grid: PLAN_SIGNATURES.map(() => sw), w: PLAN_W });
+
+  const sect = '<w:sectPr>' +
+    `<w:pgSz w:w="${TW_L.pageW}" w:h="${TW_L.pageH}" w:orient="landscape"/>` +
+    `<w:pgMar w:top="${TW_L.marg}" w:right="${TW_L.marg}" w:bottom="${TW_L.marg}" w:left="${TW_L.marg}" w:header="400" w:footer="360"/>` +
+    '<w:bidi/></w:sectPr>';
+
+  return xmlHead('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+    `<w:body>${b}${sect}</w:body></w:document>`);
+}
+
+function buildPlanDocx(p, id) {
+  id = id || IDENTITY_DEFAULT;
+  CONTENT_LTR = false;
+  const CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml';
+  const files = [
+    { name: '[Content_Types].xml', data: xmlHead(
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      `<Override PartName="/word/document.xml" ContentType="${CT}.document.main+xml"/>` +
+      `<Override PartName="/word/styles.xml" ContentType="${CT}.styles+xml"/>` +
+      `<Override PartName="/word/settings.xml" ContentType="${CT}.settings+xml"/>` +
+      '</Types>') },
+    { name: '_rels/.rels', data: xmlHead(
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+      '</Relationships>') },
+    { name: 'word/_rels/document.xml.rels', data: xmlHead(
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' +
+      '</Relationships>') },
+    { name: 'word/document.xml', data: buildPlanDocumentXml(p, id) },
+    { name: 'word/styles.xml',   data: STYLES_XML },
+    { name: 'word/settings.xml', data: SETTINGS_XML }
+  ];
+  return makeZip(files, CT + '.document');
+}
