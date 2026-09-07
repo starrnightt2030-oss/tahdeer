@@ -205,15 +205,24 @@ ul.plain li::marker{ color:var(--red) }
 .page.ltr-body .item li::marker{ color:var(--red) }
 
 /* ---------- الطباعة ---------- */
-@page{ size:A4; margin:0 }
+/* صفحات مسمّاة: تسمح بخلط العمودي والعرضي في ملف واحد (ملف الترم) */
+@page pv{ size:A4 portrait; margin:0 }
+@page ls{ size:A4 landscape; margin:0 }
+@page{ size:A4 portrait; margin:0 }
+.page{ page:pv }
+.page.land{ page:ls }
+/* اسم صفحة الجذر يجب أن يطابق أول ورقة، وإلا وُلِّد فاصل فخرجت صفحة فارغة أولى */
+html{ page:pv }
+html.first-land{ page:ls }
 @media print{
   html,body{ background:#fff !important; margin:0 !important; padding:0 !important;
     width:auto !important; height:auto !important; overflow:visible !important }
 
   /* كل ما هو خارج الورقة يُخفى بالاسم — لا بالبنية */
   .topbar, .tabs, .card, .toolbar, .sheet-back, .overlay, .toast,
-  .pick-row, .files, .status, .wk-list,
-  #modePrep, #modePlan, #modeCover{ display:none !important }
+  .pick-row, .files, .status, .wk-list, .bk, .lib-head, .lib-tools,
+  .subj-list, .tiles, .les-list,
+  #screenLibrary, #screenSubject, #modePrep, #modePlan, #modeCover{ display:none !important }
 
   /* سلسلة الحاويات التي تحتوي الورقة تُحيَّد بالكامل */
   .wrap, #resultWrap, .paper-scroll{

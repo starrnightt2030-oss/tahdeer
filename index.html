@@ -23,12 +23,15 @@
 <!-- ======================= الشريط العلوي ======================= -->
 <header class="topbar">
   <div class="brand">
+    <button id="btnBack" class="icon-btn back" hidden title="رجوع" aria-label="رجوع">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M9.6 5.6 11 7l-4 4h11v2H7l4 4-1.4 1.4L3.2 12z"/></svg>
+    </button>
     <div class="mark" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
     </div>
     <div class="brand-txt">
-      <strong>محضّر الدروس</strong>
-      <span>تحضير احترافي وفق النموذج المعتمد</span>
+      <strong id="topTitle">محضّر الدروس</strong>
+      <span id="topSub">مكتبة موادك</span>
     </div>
   </div>
   <div class="topbar-actions">
@@ -41,13 +44,59 @@
   </div>
 </header>
 
+<main class="wrap">
+
+<!-- ======================= شاشة المكتبة ======================= -->
+<div id="screenLibrary">
+  <div id="backupBar" class="bk"></div>
+  <div class="lib-head">
+    <h2>موادي</h2>
+    <button class="primary" id="btnAddSubj">
+      <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+      إضافة مادة
+    </button>
+  </div>
+  <div id="subjList" class="subj-list"></div>
+  <div class="lib-tools">
+    <button class="ghost" id="btnExport">تصدير نسخة احتياطية</button>
+    <button class="ghost" id="btnImport">استيراد نسخة</button>
+  </div>
+</div>
+
+<!-- ======================= شاشة المادة ======================= -->
+<div id="screenSubject" hidden>
+  <div class="card subj-card">
+    <div id="subjHead" class="subj-head"></div>
+    <button class="ghost tiny" id="btnEditSubj">تعديل بيانات المادة</button>
+  </div>
+
+  <div id="subjTiles" class="tiles"></div>
+
+  <section class="card">
+    <div class="card-head"><h2>الدروس</h2></div>
+    <div id="lessonList" class="les-list"></div>
+    <button class="primary big" id="btnNewLesson" style="margin-top:12px">
+      <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+      تحضير درس جديد
+    </button>
+  </section>
+
+  <section class="card generate">
+    <button class="secondary big" id="btnTerm">
+      <svg viewBox="0 0 24 24" width="19" height="19"><path fill="currentColor" d="M7 3h10v4H7zm12 6H5a2 2 0 0 0-2 2v6h4v4h10v-4h4v-6a2 2 0 0 0-2-2m-4 10H9v-4h6z"/></svg>
+      ملف الترم كامل (PDF)
+    </button>
+    <p class="status" id="termHint"></p>
+  </section>
+</div>
+
+<!-- ======================= منطقة العمل ======================= -->
+<div id="screenWork" hidden>
 <nav class="tabs" id="tabs">
   <button class="tab on" data-mode="prep">تحضير درس</button>
   <button class="tab" data-mode="plan">الخطة الزمنية</button>
   <button class="tab" data-mode="cover">غلاف المادة</button>
 </nav>
-
-<main class="wrap">
 
 <div id="modePrep">
   <!-- ======================= 1. بيانات الحصة ======================= -->
@@ -125,6 +174,8 @@
   </section>
 </div>
 
+</div><!-- /screenWork -->
+
   <!-- ======================= 4. المعاينة ======================= -->
   <section id="resultWrap" hidden>
     <div class="toolbar">
@@ -179,11 +230,47 @@
         <select id="modelSel"></select>
       </label>
       <hr>
+      <label class="field">
+        <span>اسم المدرس <em>(يظهر على كل الأوراق والتوقيعات)</em></span>
+        <input type="text" id="setTeacher" placeholder="الاسم كما يُكتب في التوقيع">
+      </label>
+      <hr>
+      <h4>أمان شغلك</h4>
+      <div id="storeBox" class="store-box"></div>
+      <hr>
       <h4>بيانات النموذج المعتمد</h4>
       <div class="grid" id="idGrid"></div>
       <div id="logoRow"></div>
       <button class="primary" id="btnSaveSettings">حفظ</button>
       <button class="ghost danger" id="btnReset">مسح البيانات المحفوظة</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= نافذة بيانات المادة ======================= -->
+<div class="sheet-back" id="subjDlg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <h3 id="sdTitle">إضافة مادة</h3>
+      <button class="icon-btn" id="sdCancel" title="إغلاق">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <label class="field"><span>المادة</span><input type="text" id="sd_name" placeholder="أساسيات الهندسة الكهربائية"></label>
+      <label class="field"><span>الصف</span><input type="text" id="sd_grade" placeholder="الصف الأول الثانوي الصناعي"></label>
+      <label class="field"><span>القسم / التخصص <em>(اختياري)</em></span><input type="text" id="sd_dept" placeholder="التركيبات الكهربائية"></label>
+      <div class="grid">
+        <label class="field"><span>العام الدراسي</span><input type="text" id="sd_year" placeholder="٢٠٢٦ / ٢٠٢٧"></label>
+        <label class="field"><span>الفصل الدراسي</span>
+          <select id="sd_term">
+            <option>الفصل الدراسي الأول</option>
+            <option>الفصل الدراسي الثاني</option>
+          </select>
+        </label>
+      </div>
+      <button class="primary" id="sdSave">حفظ</button>
+      <button class="ghost danger" id="sdDelete" hidden>حذف المادة نهائيًا</button>
     </div>
   </div>
 </div>
@@ -195,6 +282,7 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<script src="js/db.js"></script>
 <script src="js/schema.js"></script>
 <script src="js/icons.js"></script>
 <script src="js/zip.js"></script>
@@ -204,6 +292,7 @@
 <script src="js/render.js"></script>
 <script src="js/sheet.js"></script>
 <script src="js/plan.js"></script>
+<script src="js/library.js"></script>
 <script src="js/cover.js"></script>
 <script src="js/app.js"></script>
 </body>

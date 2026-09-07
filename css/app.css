@@ -184,3 +184,90 @@ button:disabled{ opacity:.5; pointer-events:none }
   .wk-item > *:nth-child(3){ grid-area:1 / 2 }
   .wk-item > *:nth-child(2){ grid-area:2 / 1 / 3 / 3 }
 }
+
+/* ---------- زر الرجوع ---------- */
+.icon-btn.back{ background:rgba(255,255,255,.18) }
+
+/* ---------- شريط حالة النسخ الاحتياطي ---------- */
+.bk{ display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  border-radius:12px; padding:9px 12px; font-size:12.5px; font-weight:600; margin-bottom:12px }
+.bk.ok{ background:#E7F6EF; color:#0B6B4A; border:1px solid #BFE6D5 }
+.bk.warn{ background:#FFF6E5; color:#8A5A00; border:1px solid #F3DFB4 }
+.bk.bad{ background:#FDECEE; color:#A01020; border:1px solid #F6D5DA }
+.bk .t{ flex:1 1 auto; line-height:1.5 }
+.bk .p{ font-weight:700; opacity:.85 }
+.bk-act{ padding:6px 12px; border-radius:9px; background:rgba(255,255,255,.75);
+  border:1.5px solid currentColor; font-size:12.5px; font-weight:800; color:inherit }
+
+/* ---------- شاشة المكتبة ---------- */
+.lib-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px }
+.lib-head h2{ font-size:17px; font-weight:800; color:var(--navy) }
+.subj-list{ display:flex; flex-direction:column; gap:10px }
+.subj{ display:flex; align-items:center; gap:10px; background:var(--card); border-radius:14px;
+  padding:13px 14px; box-shadow:var(--sh); cursor:pointer; transition:.15s }
+.subj:active{ transform:scale(.99) }
+.subj .sj-main{ flex:1; min-width:0 }
+.subj .sj-main b{ display:block; font-size:15.5px; font-weight:800; color:var(--navy) }
+.subj .sj-main > span{ display:block; font-size:12.5px; color:var(--mut); margin-top:2px }
+.subj .chips{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap }
+.subj .chips i{ font-style:normal; font-size:11.5px; font-weight:700; padding:3px 8px;
+  border-radius:7px; background:#F1F4FA; color:var(--mut) }
+.subj .chips i.ok{ background:#E7F6EF; color:#0B6B4A }
+.subj .sj-go{ color:var(--navy); opacity:.4; flex:0 0 auto }
+.lib-tools{ display:flex; gap:8px; margin-top:16px }
+.lib-tools button{ flex:1 }
+.empty{ background:var(--card); border-radius:14px; padding:22px 16px; text-align:center;
+  box-shadow:var(--sh); display:flex; flex-direction:column; gap:6px }
+.empty b{ font-size:15px; color:var(--navy) }
+.empty span{ font-size:13px; color:var(--mut); line-height:1.7 }
+.empty.small{ padding:14px; box-shadow:none; background:#F7F9FD }
+
+/* ---------- شاشة المادة ---------- */
+.subj-card{ display:flex; flex-direction:column; align-items:flex-start; gap:10px }
+.subj-card .subj-head{ width:100% }
+.subj-head b{ display:block; font-size:16px; font-weight:800; color:var(--navy) }
+.subj-head span{ display:block; font-size:12.5px; color:var(--mut); margin-top:3px; line-height:1.6 }
+.ghost.tiny{ padding:7px 11px; font-size:12.5px; border-radius:10px; flex:0 0 auto }
+.tiles{ display:flex; flex-direction:column; gap:10px; margin:12px 0 }
+.tile{ display:flex; align-items:center; gap:11px; background:var(--card); border-radius:14px;
+  padding:13px 14px; box-shadow:var(--sh); text-align:right; width:100% }
+.tile .ic{ width:38px; height:38px; border-radius:11px; background:#EEF2F9; color:var(--navy);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto }
+.tile.done .ic{ background:var(--navy); color:#fff }
+.tile .tx{ flex:1; min-width:0 }
+.tile .tx b{ display:block; font-size:14.5px; font-weight:800; color:var(--navy) }
+.tile .tx span{ display:block; font-size:12px; color:var(--mut); margin-top:2px }
+.tile .mk{ font-size:17px; font-weight:800; color:var(--mut); flex:0 0 auto }
+.tile.done .mk{ color:#0B6B4A }
+
+.les-list{ display:flex; flex-direction:column; gap:8px }
+.les{ display:flex; align-items:center; gap:9px; background:#F7F9FD; border:1px solid var(--line);
+  border-radius:12px; padding:9px 11px }
+.les .n{ width:26px; height:26px; border-radius:8px; background:var(--navy); color:#fff;
+  font-size:12.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex:0 0 auto }
+.les .tx{ flex:1; min-width:0 }
+.les .tx b{ display:block; font-size:13.5px; font-weight:700; color:var(--ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.les .tx span{ display:block; font-size:11px; color:var(--mut) }
+.les-del{ width:28px; height:28px; border-radius:9px; background:#FDECEE; color:var(--red);
+  font-size:16px; font-weight:800; flex:0 0 auto }
+
+/* ---------- صندوق حالة التخزين ---------- */
+.store-box{ background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:4px 12px }
+.store-box .sr{ display:flex; align-items:center; gap:10px; padding:9px 0; font-size:12.5px;
+  border-bottom:1px solid #EEF2F8 }
+.store-box .sr:last-of-type{ border-bottom:0 }
+.store-box .sr > span{ flex:0 0 40%; color:var(--mut); font-weight:700 }
+.store-box .sr > div{ flex:1; line-height:1.6 }
+.store-box b{ font-weight:800 }
+.store-box b.g{ color:#0B6B4A } .store-box b.w{ color:#8A5A00 } .store-box b.r{ color:var(--red) }
+.store-btns{ display:flex; flex-wrap:wrap; gap:7px; padding:10px 0 12px }
+.store-btns button{ flex:1 1 auto; padding:8px 12px; font-size:12.5px; border-radius:10px }
+
+/* تعديل/حذف على بطاقات الغلاف والخطة */
+.tile{ display:flex; align-items:stretch; gap:0; background:var(--card); border-radius:14px;
+  box-shadow:var(--sh); overflow:hidden; padding:0 }
+.tile-main{ display:flex; align-items:center; gap:11px; flex:1; min-width:0;
+  padding:13px 14px; text-align:right; background:none }
+.tile-del{ flex:0 0 auto; width:44px; background:#FDECEE; color:var(--red);
+  font-size:20px; font-weight:800; border-inline-start:1px solid #F6D5DA }

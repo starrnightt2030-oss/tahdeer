@@ -202,9 +202,9 @@ async function generate() {
     busy(true, 'جارٍ قصّ الأشكال التوضيحية وتنسيق الورقة…');
     data.figures = buildFigures(data.figures, state.pages);
     state.data = data;
-    store.set(LS.last, { data, meta, at: Date.now() });
+    await saveLesson();
     showResult();
-    toast('تم إنشاء التحضير');
+    toast('تم إنشاء التحضير وحفظه في المادة');
   } catch (e) {
     console.error(e);
     setStatus(e.message || 'حدث خطأ غير متوقع', true);
@@ -233,7 +233,8 @@ function bindEdits() {
       const v = node.innerText.trim();
       if (p.startsWith('meta.')) setPath(state.meta, p.slice(5), v);
       else setPath(state.data, p, v);
-      store.set(LS.last, { data: state.data, meta: state.meta, at: Date.now() });
+      clearTimeout(bindEdits._sv);
+      bindEdits._sv = setTimeout(saveLesson, 1200);
     });
     node.addEventListener('paste', e => {
       e.preventDefault();
@@ -299,14 +300,13 @@ window.addEventListener('orientationchange', () => { if (state.data) setTimeout(
 const MODE_TITLE = { prep: 'تحضير احترافي وفق النموذج المعتمد',
   plan: 'الخطة الزمنية للفصل الدراسي', cover: 'غلاف المادة' };
 
-/* مقاس الورق للطباعة يتغيّر حسب الوظيفة */
-function setPageSize(landscape) {
-  let st = document.getElementById('pageSizeCss');
-  if (!st) { st = document.createElement('style'); st.id = 'pageSizeCss'; document.head.appendChild(st); }
-  st.textContent = '@page{ size:A4 ' + (landscape ? 'landscape' : 'portrait') + '; margin:0 }';
-}
+/* مقاس الورق تحدده الصفحات المسمّاة في paper.css:
+   .page → @page pv (عمودي) و .page.land → @page ls (عرضي).
+   ممنوع حقن قاعدة @page عامة هنا — وجودها يُلغي أثر الصفحات المسمّاة
+   فتُطبع الخطة العرضية على ورق عمودي داخل ملف الترم. */
+function setPageSize() { /* لا شيء — محفوظة للتوافق */ }
 
-function setMode(m) {
+function setMode(m, skipLoad) {
   state.mode = m;
   ['prep', 'plan', 'cover'].forEach(k => {
     const sec = $('#mode' + k[0].toUpperCase() + k.slice(1));
@@ -325,6 +325,83 @@ function setMode(m) {
   $('#resultWrap').hidden = true;
   setPageSize(m === 'plan');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (typeof setTopbar === 'function') setTopbar();
+  if (!skipLoad) loadSection(m);
+}
+
+/* ---------------- فتح قسم داخل المادة ---------------- */
+async function openWork(mode, lessonId) {
+  Lib.lessonId = lessonId || null;
+  await go('work');
+  setMode(mode, true);
+  await loadSection(mode);
+}
+
+/* يجهّز القسم من بيانات المادة والمكتبة */
+async function loadSection(mode) {
+  const sub = Lib.subject;
+  if (!sub) return;
+  const teacher = await DB.get('teacher', '');
+
+  if (mode === 'prep') {
+    /* الحقول المشتركة من المادة */
+    const pre = { subject: sub.name, grade: sub.grade, dept: sub.dept, teacher };
+    Object.keys(pre).forEach(k => { const e = $('#m_' + k); if (e && !e.value) e.value = pre[k] || ''; });
+    if (Lib.lessonId) {
+      const les = await DB.lesson(Lib.lessonId);
+      if (les) {
+        state.data = les.data; state.meta = les.meta || {};
+        META_FIELDS.forEach(f => { const e = $('#m_' + f.key); if (e && state.meta[f.key] != null) e.value = state.meta[f.key]; });
+        state.files = []; renderFiles();
+        showResult();
+        setStatus('درس محفوظ — عدّل ما تشاء أو اطبعه');
+        return;
+      }
+    }
+    /* درس جديد: أرقام الدرس التالية تلقائيًا */
+    const ls = await DB.lessons(sub.id);
+    const nextNo = ls.reduce((m, l) => Math.max(m, parseInt(l.lessonNo, 10) || 0), 0) + 1;
+    if ($('#m_lessonNo') && !$('#m_lessonNo').value) $('#m_lessonNo').value = nextNo;
+    state.data = null; state.files = []; renderFiles();
+    setStatus('');
+  }
+
+  if (mode === 'plan') {
+    const doc = await DB.doc('plan', sub.id);
+    const base = { subject: sub.name, grade: sub.grade, dept: sub.dept, teacher,
+      year: sub.year, term: sub.term };
+    const m = doc ? Object.assign({}, base, doc.payload.meta) : base;
+    PLAN_FIELDS.forEach(f => { const e = $('#p_' + f.key); if (e && m[f.key]) e.value = m[f.key]; });
+    plan.meta = readForm(PLAN_FIELDS, '#p_', null);
+    plan.rows = (doc && doc.payload.rows) ? doc.payload.rows : plan.rows;
+    planEnsureRows(plan.meta.weeks);
+    planRenderEditor();
+    if (doc) makePlan();
+  }
+
+  if (mode === 'cover') {
+    const doc = await DB.doc('cover', sub.id);
+    const base = { subject: sub.name, grade: sub.grade, dept: sub.dept, teacher,
+      year: sub.year, term: sub.term };
+    const m = Object.assign({}, base, doc ? doc.payload : {});
+    COVER_FIELDS.forEach(f => { const e = $('#c_' + f.key); if (e && m[f.key]) e.value = m[f.key]; });
+    if (doc) makeCover();
+  }
+}
+
+/* ---------------- حفظ الأقسام في المكتبة ---------------- */
+async function saveLesson() {
+  if (!Lib.subject || !state.data) return;
+  const rec = {
+    subjectId: Lib.subject.id,
+    lessonNo: state.meta.lessonNo || '',
+    title: state.data.lessonTitle || '',
+    meta: state.meta, data: state.data
+  };
+  if (Lib.lessonId) rec.id = Lib.lessonId;
+  const saved = await DB.lessonSave(rec);
+  Lib.lessonId = saved.id;
+  renderBackupBar();
 }
 
 /* ---------- الخطة الزمنية ---------- */
@@ -369,6 +446,7 @@ function makePlan() {
   $('#resultWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
   st.textContent = `الخطة جاهزة في ${toArabicDigits(n)} ${n === 1 ? 'صفحة' : 'صفحات'}`;
   st.className = 'status';
+  if (Lib.subject) { DB.docSave('plan', Lib.subject.id, { meta: plan.meta, rows: plan.rows }).then(renderBackupBar); }
 }
 
 /* ---------- غلاف المادة ---------- */
@@ -389,6 +467,7 @@ function makeCover() {
   $('#resultWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
   st.textContent = 'الغلاف جاهز — يمكنك تعديل أي نص عليه قبل الطباعة';
   st.className = 'status';
+  if (Lib.subject) { DB.docSave('cover', Lib.subject.id, m).then(renderBackupBar); }
 }
 
 /* تحرير حر داخل الخطة/الغلاف (بدون ربط ببيانات) */
@@ -399,6 +478,56 @@ function bindPlainEdits() {
       document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text'));
     });
   });
+}
+
+/* ---------------- ملف الترم الكامل ---------------- */
+async function printTerm() {
+  const sub = Lib.subject;
+  if (!sub) return;
+  busy(true, 'جارٍ تجهيز ملف الترم…');
+  try {
+    const [cover, planDoc, lessons] = await Promise.all([
+      DB.doc('cover', sub.id), DB.doc('plan', sub.id), DB.lessons(sub.id)
+    ]);
+    const teacher = await DB.get('teacher', '');
+    const paper = $('#paper');
+    paper.innerHTML = '';
+    state.mode = 'term';
+    state.zoom = null;
+    setPageSize(false);                       /* الأساس عمودي، والخطة تأخذ صفحتها العرضية */
+    document.querySelectorAll('.only-prep,.only-doc').forEach(e => { e.hidden = true; });
+    $('#resultWrap').hidden = false;
+
+    /* حاوية قياس داخل الصفحة — بدونها تكون الأبعاد صفرًا فلا يحدث ترقيم صحيح */
+    const tmp = el('div', 'paper');
+    tmp.style.cssText = 'position:fixed;left:-10000px;top:0;visibility:hidden';
+    document.body.appendChild(tmp);
+
+    if (cover) {
+      renderCover(tmp, cover.payload, state.id);
+      while (tmp.firstChild) paper.appendChild(tmp.firstChild);
+    }
+    if (planDoc) {
+      const pm = Object.assign({ teacher }, planDoc.payload.meta || {});
+      renderPlan(tmp, { meta: pm, rows: planDoc.payload.rows || [] }, state.id);
+      while (tmp.firstChild) paper.appendChild(tmp.firstChild);
+    }
+    for (const les of lessons) {
+      const meta = Object.assign({ teacher }, les.meta || {});
+      renderDocument(tmp, les.data, meta, state.id);
+      while (tmp.firstChild) paper.appendChild(tmp.firstChild);
+    }
+
+    tmp.remove();
+    const n = paper.querySelectorAll('.page').length;
+    if (!n) { toast('لا يوجد ما يُطبع في هذه المادة', true); return; }
+    bindPlainEdits();
+    fitPaper();
+    $('#resultWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast(`ملف الترم جاهز: ${toArabicDigits(n)} صفحة — اضغط طباعة/حفظ PDF`);
+  } catch (e) {
+    console.error(e); toast('تعذّر تجهيز ملف الترم', true);
+  } finally { busy(false); }
 }
 
 /* ---------------- 5) الإعدادات ---------------- */
@@ -449,17 +578,62 @@ function buildSettings() {
   row.append(b, fi);
 }
 
-function openSettings() { buildSettings(); $('#settingsBack').hidden = false; }
+async function openSettings() {
+  buildSettings();
+  $('#setTeacher').value = await DB.get('teacher', '');
+  await renderStorageBox();
+  $('#settingsBack').hidden = false;
+}
+
+/* صندوق حالة التخزين والنسخ الاحتياطي داخل الإعدادات */
+async function renderStorageBox() {
+  const b = $('#storeBox');
+  const u = await Persist.usage();
+  const mb = v => (v / 1048576).toFixed(v > 10485760 ? 0 : 1) + ' م.ب';
+  const persistTxt = Persist.state === 'granted'
+    ? '<b class="g">مُفعَّل ✓</b> — المتصفح لن يحذف شغلك تلقائيًا'
+    : (Persist.state === 'unsupported'
+      ? '<b class="w">غير مدعوم في هذا المتصفح</b>'
+      : '<b class="w">غير مُفعَّل</b> — ثبّت التطبيق على الشاشة الرئيسية ليُفعَّل');
+  const bkTxt = {
+    ready: '<b class="g">مُفعَّل ✓</b>' + (Backup.lastAt ? ' — آخر نسخة ' + new Date(Backup.lastAt).toLocaleString('ar-EG') : ''),
+    needPermission: '<b class="w">يحتاج تأكيد الإذن</b>',
+    error: '<b class="r">تعذّر الكتابة</b> — ' + escHtml(Backup.lastError || ''),
+    unsupported: '<b class="w">غير مدعوم</b> — استخدم التصدير اليدوي',
+    off: '<b class="w">غير مُفعَّل</b> — شغلك على هذا الجهاز فقط'
+  }[Backup.status] || '';
+
+  b.innerHTML =
+    `<div class="sr"><span>التخزين الدائم</span><div>${persistTxt}</div></div>` +
+    `<div class="sr"><span>نسخة احتياطية تلقائية</span><div>${bkTxt}</div></div>` +
+    (u ? `<div class="sr"><span>المستخدم من مساحة الجهاز</span><div><b>${mb(u.used)}</b>${u.quota ? ' من ' + mb(u.quota) : ''}</div></div>` : '');
+
+  const row = el('div', 'store-btns');
+  const mk = (label, cls, fn) => { const x = el('button', cls, label); x.onclick = fn; return x; };
+  if (Backup.status === 'ready') {
+    row.appendChild(mk('نسخ الآن', 'ghost', async () => { await Backup.run(true); await renderStorageBox(); renderBackupBar(); toast('تم تحديث النسخة'); }));
+    row.appendChild(mk('تغيير المجلد', 'ghost', async () => { try { await Backup.choose(); } catch (_) {} await renderStorageBox(); renderBackupBar(); }));
+    row.appendChild(mk('إيقاف', 'ghost danger', async () => { await Backup.disable(); await renderStorageBox(); renderBackupBar(); }));
+  } else if (Backup.supported()) {
+    row.appendChild(mk(Backup.status === 'needPermission' ? 'تأكيد الإذن' : 'اختيار مجلد النسخ', 'primary',
+      async () => { await backupAction(); await renderStorageBox(); }));
+  }
+  row.appendChild(mk('تصدير نسخة', 'ghost', exportBackup));
+  row.appendChild(mk('استيراد نسخة', 'ghost', importBackup));
+  b.appendChild(row);
+}
 function closeSettings() { $('#settingsBack').hidden = true; }
 
-function saveSettings() {
+async function saveSettings() {
   store.set(LS.key, $('#apiKey').value.trim());
   store.set(LS.model, $('#modelSel').value);
   ID_FIELDS.forEach(f => { state.id[f.k] = ($('#id_' + f.k).value || '').trim(); });
   store.set(LS.id, state.id);
+  await DB.set('identity', state.id);
+  await DB.set('teacher', ($('#setTeacher').value || '').trim());
   closeSettings();
   toast('تم حفظ الإعدادات');
-  if (state.data) showResult();
+  if (state.data && Lib.screen === 'work') showResult();
 }
 
 /* ---------------- 6) التصدير ---------------- */
@@ -481,6 +655,9 @@ function fileBase() {
 
 function doPrint() {
   const p = $('#paper'), box = p.parentElement;
+  /* اسم صفحة الجذر = نوع أول ورقة، وإلا خرجت صفحة فارغة في البداية */
+  const first = p.querySelector('.page');
+  document.documentElement.classList.toggle('first-land', !!(first && first.classList.contains('land')));
   const st = { t: p.style.transform, w: p.style.width, h: box.style.height, o: box.style.overflowX };
   p.style.transform = ''; p.style.width = '';
   box.style.height = ''; box.style.overflowX = '';
@@ -493,10 +670,8 @@ function doPrint() {
 
 /* ---------------- تحضير درس جديد ---------------- */
 function newLesson() {
-  if (state.data && !confirm('سيتم إخلاء التحضير الحالي والملفات المرفوعة للبدء من جديد.\nتأكد أنك حفظت النسخة (PDF أو Word) قبل المتابعة. متابعة؟')) return;
-
   state.files = []; state.pages = []; state.data = null; state.zoom = null;
-  store.del(LS.last);
+  Lib.lessonId = null;
   renderFiles();
   $('#paper').innerHTML = '';
   $('#resultWrap').hidden = true;
@@ -513,7 +688,7 @@ function newLesson() {
 
   setStatus('جاهز لتحضير درس جديد — أدخل رقم الدرس وارفع صفحاته');
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  const first = $('#m_lessonNo'); if (first) setTimeout(() => first.focus(), 400);
+  loadSection('prep');
 }
 
 function doWord() {
@@ -561,7 +736,18 @@ function init() {
   $('#btnPlan').onclick = makePlan;
   $('#btnCover').onclick = makeCover;
 
-  setMode('prep');
+  /* ---- المكتبة ---- */
+  $('#btnBack').onclick = () => {
+    if (Lib.screen === 'work') go('subject', Lib.subject && Lib.subject.id);
+    else go('library');
+  };
+  $('#btnAddSubj').onclick = () => subjectDialog(null);
+  $('#btnEditSubj').onclick = () => subjectDialog(Lib.subject);
+  $('#btnNewLesson').onclick = () => openWork('prep');
+  $('#btnTerm').onclick = printTerm;
+  $('#btnExport').onclick = exportBackup;
+  $('#btnImport').onclick = importBackup;
+  $('#subjDlg').addEventListener('click', e => { if (e.target.id === 'subjDlg') $('#subjDlg').hidden = true; });
 
   $('#btnGenerate').onclick = generate;
   $('#btnRegen').onclick = generate;
@@ -587,20 +773,71 @@ function init() {
     deferredPrompt = null; $('#btnInstall').hidden = true;
   };
 
-  /* استعادة آخر تحضير */
-  const last = store.get(LS.last, null);
-  if (last && last.data) {
-    state.data = last.data; state.meta = last.meta || {};
-    META_FIELDS.forEach(f => { if (state.meta[f.key] && $('#m_' + f.key)) $('#m_' + f.key).value = state.meta[f.key]; });
-    showResult();
-    setStatus('تم استرجاع آخر تحضير — يمكنك التعديل أو توليد تحضير جديد');
-  }
-
-  if (!store.get(LS.key, '')) setTimeout(openSettings, 600);
-
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+
+  boot();
+}
+
+/* ---------------- التهيئة غير المتزامنة ---------------- */
+async function boot() {
+  try {
+    await dbOpen();
+    await Persist.ensure();
+    await Backup.init();
+
+    const idn = await DB.get('identity', null);
+    if (idn) state.id = Object.assign({}, IDENTITY_DEFAULT, idn);
+    else await DB.set('identity', state.id);
+
+    await migrateLegacy();
+    await go('library');
+  } catch (e) {
+    console.error(e);
+    toast('تعذّر فتح المكتبة على هذا الجهاز', true);
+  }
+  if (!store.get(LS.key, '')) setTimeout(openSettings, 800);
+}
+
+/* ينقل الشغل المحفوظ في النسخة القديمة (localStorage) إلى المكتبة مرة واحدة */
+async function migrateLegacy() {
+  if (await DB.get('migrated', false)) return;
+  const last = store.get(LS.last, null);
+  const pMeta = store.get(LS.plan, null);
+  const pRows = store.get(LS.planRows, null);
+  const cMeta = store.get(LS.cover, null);
+  const remembered = store.get(LS.meta, {});
+  const teacher = (last && last.meta && last.meta.teacher) || remembered.teacher || '';
+  if (teacher) await DB.set('teacher', teacher);
+
+  const name = (last && last.meta && last.meta.subject) || (pMeta && pMeta.subject) ||
+               (cMeta && cMeta.subject) || remembered.subject;
+  if (!name) { await DB.set('migrated', true); return; }
+
+  const sub = await DB.subjectSave({
+    name,
+    grade: (last && last.meta && last.meta.grade) || (pMeta && pMeta.grade) || remembered.grade || '',
+    dept:  (last && last.meta && last.meta.dept)  || (pMeta && pMeta.dept)  || remembered.dept || '',
+    year:  (pMeta && pMeta.year) || (cMeta && cMeta.year) || '',
+    term:  (pMeta && pMeta.term) || (cMeta && cMeta.term) || 'الفصل الدراسي الأول'
+  });
+
+  if (last && last.data) {
+    await DB.lessonSave({
+      subjectId: sub.id,
+      lessonNo: (last.meta && last.meta.lessonNo) || '1',
+      title: last.data.lessonTitle || '',
+      meta: last.meta || {}, data: last.data
+    });
+  }
+  if (pMeta && Array.isArray(pRows) && pRows.length) {
+    await DB.docSave('plan', sub.id, { meta: pMeta, rows: pRows });
+  }
+  if (cMeta && cMeta.subject) await DB.docSave('cover', sub.id, cMeta);
+
+  await DB.set('migrated', true);
+  toast('تم نقل شغلك السابق إلى المكتبة');
 }
 
 document.addEventListener('DOMContentLoaded', init);
