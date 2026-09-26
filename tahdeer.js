@@ -1,11 +1,6 @@
-/* ============================================================================
-   tahdeer.js — كل ملفات التطبيق مدموجة في ملف واحد
-   الترتيب هو نفسه ترتيب الوسوم في النسخة المقسَّمة — لا تغيّره.
-   (نسخة الرفع من الموبايل: كل الملفات في الجذر بلا مجلدات)
-   ============================================================================ */
+/* tahdeer.js — كل ملفات التطبيق مدموجة (نسخة الرفع من الموبايل) */
 
-
-/* ===================== js/db.js ===================== */
+/* ===== js/db.js ===== */
 /* =========================================================================
    db.js — التخزين الدائم (IndexedDB) + النسخ الاحتياطي إلى مجلد حقيقي
    البنية: مادة ← { غلاف · خطة زمنية · دروس }
@@ -285,7 +280,7 @@ function backupSoon() {
   }, 2500);
 }
 
-/* ===================== js/schema.js ===================== */
+/* ===== js/schema.js ===== */
 /* =========================================================================
    schema.js — مصدر الحقيقة الوحيد لقالب التحضير
    النموذج + برومبت الذكاء الاصطناعي + المعاينة + ملف Word كلها تُبنى من هنا.
@@ -305,9 +300,32 @@ const IDENTITY_DEFAULT = {
   logo:       ''            // يضعه المستخدم من الإعدادات (data URL)
 };
 
+/* =========================================================================
+   ستايلات الورقة — ثلاثة أشكال للنموذج المعتمد نفسه
+
+   الهيكل واحد في الثلاثة: نفس الحقول وترتيبها ونفس التوقيعات ونفس رقم
+   النموذج. ما يتغيّر هو المعالجة البصرية فقط، فلا يخرج أي ستايل عن
+   النموذج المعتمد من الجودة.
+   ========================================================================= */
+const SHEET_THEMES = [
+  { id: 'official', cls: '',           name: 'رسمي',
+    desc: 'ألواح كحلية ممتلئة وشريطان عريضان — الشكل المعتمد الحالي.' },
+  { id: 'classic',  cls: 't-classic',  name: 'كلاسيكي',
+    desc: 'خطوط رفيعة على أبيض وعناوين مفرّدة — أنيق ويوفّر حبر الطابعة.' },
+  { id: 'compact',  cls: 't-compact',  name: 'مضغوط',
+    desc: 'سطور أكثف وحواف حادّة — محتوى أكثر في الورقة ودروس أقصر صفحاتٍ.' }
+];
+const THEME_DEFAULT = 'official';
+function themeClass(id) {
+  const t = SHEET_THEMES.find(x => x.id === id);
+  return t ? t.cls : '';
+}
+
 /* ---------- بيانات يدخلها المعلّم ---------- */
 const META_FIELDS = [
   { key: 'lessonNo', label: 'رقم الدرس', type: 'text', ph: 'مثال: ٤',                       remember: false, req: true },
+  /* يُملأ من الخطة الزمنية؛ وإن تُرك فارغًا يستخرجه النموذج من صفحات الكتاب */
+  { key: 'title',    label: 'عنوان الدرس', type: 'text', ph: 'يُملأ من الخطة تلقائيًا',      remember: false, noPrint: true },
   { key: 'date',     label: 'التاريخ',   type: 'date', ph: '',                               remember: false },
   { key: 'week',     label: 'الأسبوع',   type: 'text', ph: 'مثال: ٤',                       remember: false },
   { key: 'period',   label: 'الحصة',     type: 'text', ph: 'مثال: ٤',                       remember: false },
@@ -412,6 +430,7 @@ const IDENTITY_PRAC = { dept2: 'إدارة التدريب العملي', formCod
 
 const PRAC_FIELDS = [
   { key: 'lessonNo', label: 'رقم الموضوع', type: 'text', ph: 'مثال: ٣', remember: false, req: true },
+  { key: 'title',    label: 'اسم الموضوع', type: 'text', ph: 'يُملأ من الخطة تلقائيًا', remember: false, noPrint: true },
   { key: 'date',     label: 'التاريخ',      type: 'date', remember: false },
   { key: 'period',   label: 'الحصة',        type: 'text', ph: 'مثال: ٣', remember: false },
   { key: 'duration', label: 'زمن التنفيذ',  type: 'text', ph: '٩٠ دقيقة', remember: true },
@@ -518,13 +537,14 @@ const PLAN_COLUMNS = [
   { key: 'notes', label: 'الملاحظات',  w: 31, align: 'right' }
 ];
 
-/* أسباب الأسبوع الذي لا يُدرَّس فيه — يتخطّاه ترقيم الدروس تلقائيًا */
+/* أسباب الأسبوع الذي لا يُدرَّس فيه — يتخطّاه ترقيم الدروس تلقائيًا.
+   آخر خيار يفتح خانة كتابة حرّة لسبب من عند المدرّس. */
+const PLAN_OFF_OTHER = 'سبب آخر — اكتبه بنفسك';
 const PLAN_OFF_REASONS = [
-  'أسبوع تعريفي وتنظيمي',
-  'امتحان منتصف الفصل الدراسي',
-  'امتحان نهاية الفصل الدراسي',
-  'أسبوع مراجعة عامة',
-  'أجازة رسمية'
+  'اختبار ميدتيرم',
+  'اختبار نصف العام',
+  'أسبوع تنظيمي وتمهيدي',
+  PLAN_OFF_OTHER
 ];
 
 const PLAN_SIGNATURES = [
@@ -589,7 +609,7 @@ function lessonOrdinal(n) {
   return (i >= 1 && i < ORDINALS.length) ? ORDINALS[i] : toArabicDigits(n);
 }
 
-/* ===================== js/icons.js ===================== */
+/* ===== js/icons.js ===== */
 /* أيقونات SVG مسطّحة (24×24) تُستخدم في لوحات التحضير وشريط البيانات */
 const ICONS = {
   book:  'M4 4h6a3 3 0 0 1 3 3v13a2.6 2.6 0 0 0-2-1H4zm16 0h-6a3 3 0 0 0-3 3v13a2.6 2.6 0 0 1 2-1h7z',
@@ -625,7 +645,7 @@ const STRIP_ICONS = { date: 'cal', week: 'week', period: 'clock', duration: 'clo
   group: 'group' };
 const ROW_ICONS   = { subject: 'book', grade: 'grade', dept: 'bolt', teacher: 'clip' };
 
-/* ===================== js/zip.js ===================== */
+/* ===== js/zip.js ===== */
 /* =========================================================================
    zip.js — كاتب ZIP مصغّر (بدون ضغط) لتوليد ملفات .docx داخل المتصفح
    لا يحتاج أي مكتبة خارجية، ويعمل بالكامل بدون إنترنت.
@@ -721,7 +741,7 @@ function makeZip(files, mime) {
   return new Blob([...locals, ...centrals, end], { type: mime || 'application/zip' });
 }
 
-/* ===================== js/docx.js ===================== */
+/* ===== js/docx.js ===== */
 /* =========================================================================
    docx.js — توليد ملف Word (.docx) حقيقي داخل المتصفح، بدون خادم
    نسخة مبسّطة ومنسّقة من الورقة، قابلة للتعديل والأرشفة.
@@ -1355,7 +1375,16 @@ async function prepMedia(id, figure, wPx) {
     const png = await svgToPng(defaultLogoSvg(id).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 200);
     if (png) logoM = mediaAdd(new Uint8Array(await png.blob.arrayBuffer()), 'png');
   }
-  if (figure && figure.svg) {
+  if (figure && figure.src) {
+    /* صورة من الكتاب — تُدرج كما هي */
+    const d = dataUrlBytes(figure.src);
+    if (d) {
+      const dim = await imageSize(figure.src);
+      const m = mediaAdd(d.bytes, d.ext);
+      const w = wPx || 430;
+      figM = { media: m, w, h: Math.round(w * (dim ? dim.h / dim.w : 0.65)), caption: figure.caption };
+    }
+  } else if (figure && figure.svg) {
     const png = await svgToPng(figure.svg, 1400);
     if (png) {
       const m = mediaAdd(new Uint8Array(await png.blob.arrayBuffer()), 'png');
@@ -1369,14 +1398,14 @@ async function prepMedia(id, figure, wPx) {
 async function buildDocx(data, meta, id) {
   id = id || IDENTITY_DEFAULT;
   CONTENT_LTR = (data && data.contentLang === 'en');
-  const { logoM, figM } = await prepMedia(id, data && data.figure, 400);
+  const { logoM, figM } = await prepMedia(id, readFigure(data), 400);
   return packDocx(buildDocumentXml(data, meta, id, logoM, figM), id);
 }
 
 async function buildPracDocx(data, meta, id) {
   const pid = Object.assign({}, id || IDENTITY_DEFAULT, IDENTITY_PRAC);
   CONTENT_LTR = (data && data.contentLang === 'en');
-  const { logoM, figM } = await prepMedia(pid, data && data.figure, 430);
+  const { logoM, figM } = await prepMedia(pid, readFigure(data), 430);
   return packDocx(buildPracDocumentXml(data, meta, pid, logoM, figM), pid);
 }
 
@@ -1387,7 +1416,7 @@ async function buildPlanDocx(p, id) {
   return packDocx(buildPlanDocumentXml(p, id, logoM), id);
 }
 
-/* ===================== js/pages.js ===================== */
+/* ===== js/pages.js ===== */
 /* =========================================================================
    pages.js — تحويل ملفات الدرس (PDF / صور) إلى صور صفحات في الذاكرة
    تُرسل للنموذج ليقرأها. الأشكال التوضيحية لم تعد تُقصّ من هذه الصور —
@@ -1468,7 +1497,7 @@ function canvasToPart(canvas) {
   return { inline_data: { mime_type: 'image/jpeg', data: url.split(',')[1] } };
 }
 
-/* ===================== js/gemini.js ===================== */
+/* ===== js/gemini.js ===== */
 /* =========================================================================
    gemini.js — الاتصال بـ Google Gemini (الحصة المجانية) من المتصفح مباشرة
    المفتاح يُخزَّن على جهاز المستخدم فقط (localStorage) ولا يمرّ بأي خادم وسيط.
@@ -1546,8 +1575,13 @@ const RESPONSE_SCHEMA = {
     homework: S_LIST,
     figure: {
       type: 'OBJECT',
-      properties: { caption: S_STR, svg: S_STR },
-      propertyOrdering: ['caption', 'svg']
+      properties: {
+        caption: S_STR,
+        page:    { type: 'INTEGER' },
+        box_2d:  { type: 'ARRAY', items: { type: 'INTEGER' } },
+        svg:     S_STR
+      },
+      propertyOrdering: ['caption', 'page', 'box_2d', 'svg']
     }
   },
   propertyOrdering: ['contentLang', 'lessonTitle', 'objectives', 'prerequisites', 'resources',
@@ -1590,8 +1624,13 @@ const PRAC_SCHEMA = {
     ppe:    S_LIST,
     figure: {
       type: 'OBJECT',
-      properties: { caption: S_STR, svg: S_STR },
-      propertyOrdering: ['caption', 'svg']
+      properties: {
+        caption: S_STR,
+        page:    { type: 'INTEGER' },
+        box_2d:  { type: 'ARRAY', items: { type: 'INTEGER' } },
+        svg:     S_STR
+      },
+      propertyOrdering: ['caption', 'page', 'box_2d', 'svg']
     }
   },
   propertyOrdering: ['contentLang', 'topicTitle', 'practKind', 'purpose', 'elements',
@@ -1623,6 +1662,7 @@ ${kindRule}
 • الورشة/المادة: ${meta.subject || '—'}   • الصف/الفرقة: ${meta.grade || '—'}   • التخصص: ${meta.dept || '—'}
 • رقم الموضوع: ${meta.lessonNo || '—'}   • المجموعة: ${meta.group || '—'}   • الحصة: ${meta.period || '—'}
 • زمن التنفيذ: ${meta.duration || '٩٠ دقيقة'}
+${meta.title ? '• اسم الموضوع معتمد من الخطة الزمنية — استخدمه حرفيًا في topicTitle: ' + meta.title : ''}
 ${meta.hint ? '• توجيه من المدرب: ' + meta.hint : ''}
 
 الحقول المطلوبة:
@@ -1644,21 +1684,33 @@ ${meta.hint ? '• توجيه من المدرب: ' + meta.hint : ''}
    وأضف في الخطوة التي تحتاجه تحذيرًا فنيًا صريحًا داخل body.
 8. safety — ٤ إلى ٦ قواعد أمن صناعي مرتبطة **بهذا التمرين وعِدده تحديدًا**، لا قواعد عامة مرسلة.
 9. ppe — ٣ إلى ٥ مهمات وقاية شخصية يلزم استخدامها في هذا التمرين.
-10. figure — **ارسم أنت** الشكل التوضيحي ولا تقتبس صورة من الكتاب:
-    caption عنوان قصير للشكل، وsvg نصّ الرسم.
-    المطلوب رسمه: لو الموضوع تمرين فشكل التمرين المنفَّذ بأبعاده ومقاساته،
+10. figure — الشكل التوضيحي (رسم التمرين أو العملية):
+    **القاعدة: صورة الكتاب أولًا، ورسمُك أنت بديلًا عند غيابها.**
+
+    أ) **لو في الصفحات المرفقة رسم أو مخطّط أو دائرة أو صورة توضيحية مفيدة** —
+       حدّد مكانه ولا ترسم شيئًا:
+       • page: رقم الصورة المرفقة التي فيه (تبدأ من ١)
+       • box_2d: إطاره [y1, x1, y2, x2] بقيم ٠..١٠٠٠ نسبةً لأبعاد تلك الصورة
+       • اجعل الإطار **حول الرسم كاملًا** بما فيه أرقام الأبعاد ووسوم العناصر،
+         وزد هامشًا بسيطًا. الإطار الناقص أسوأ من لا شيء.
+       • **ممنوع** أن تختار فقرة نصّية أو عنوانًا أو جدولًا أو ترويسة صفحة.
+         لو لم يوجد إلا نصّ فلا تضع box_2d إطلاقًا.
+       • واترك svg فارغًا في هذه الحالة.
+
+    ب) **لو لا يوجد رسم صالح في الصفحات** — اترك box_2d فارغًا وارسم أنت في svg:
+       • ابدأ بـ<svg viewBox="0 0 400 260"> وانتهِ بـ</svg>. لا width ولا height.
+       • خطوط ومسارات وأشكال ونصوص فقط. ممنوع تمامًا: script · style · image ·
+         foreignObject وأي رابط خارجي وأي خاصية on… — أي واحدة تُلغي الرسم كله.
+       • لونان: الكحلي #16295C للخطوط والنصوص، والأحمر #C8102E لإبراز عنصر واحد.
+         الخلفية بيضاء (لا ترسمها) وسمك الخط 2.
+       • الوسوم نصوص <text> قصيرة font-size="13" بالإنجليزية أو بالرموز الفنية
+         (R1, 220V, L, N) — العربية داخل الرسم تنعكس. والأرقام لاتينية دائمًا.
+       • ارسم ما يشرح الفكرة: دائرة أو مخطّط أو رسم مقطعي أو مسار عملية.
+       • بسيط مقروء: من ٦ إلى ٢٥ عنصرًا. المزدحم غير مفيد على ورقة مطبوعة.
+
+    المطلوب إظهاره: لو الموضوع تمرين فشكل التمرين المنفَّذ بأبعاده ومقاساته،
     ولو شرح عملية فرسم العدة/الأداة أو مراحل العملية بالترتيب.
-    وارسمه بـSVG نظيف بهذه القواعد الإلزامية:
-    • ابدأ بـ<svg viewBox="0 0 400 260"> وانتهِ بـ</svg>. لا تضع width ولا height.
-    • خطوط ومسارات وأشكال ونصوص فقط. ممنوع تمامًا: script · style · image · foreignObject
-      وأي رابط خارجي وأي خاصية on… — أي واحدة منها تُلغي الرسم كله.
-    • لونان فقط: الكحلي #16295C للخطوط والنصوص، والأحمر #C8102E لإبراز عنصر واحد مهم.
-      الخلفية بيضاء (لا ترسمها) وسمك الخط 2.
-    • اكتب وسوم العناصر بنصوص <text> قصيرة بحجم font-size="13" — بالإنجليزية أو بالرموز
-      الفنية (R1, 220V, L, N) لأن العربية داخل الرسم تنعكس. والأرقام لاتينية دائمًا.
-    • ارسم **ما يشرح الفكرة**: دائرة كهربائية أو مخطط أو رسم مقطعي أو جدول ألوان أو
-      مسار عملية — لا صورة زخرفية ولا إطارًا فارغًا.
-    • اجعله بسيطًا مقروءًا: من ٦ إلى ٢٥ عنصرًا. الرسم المزدحم غير مفيد على ورقة مطبوعة.
+    في الحالتين: caption عنوان قصير للشكل بلغة المحتوى.
 
 ## ممنوع الإحالة إلى الكتاب — قاعدة صارمة
 ورقة التحضير هي كل ما بين يدي المدرب والطالب في الورشة؛ **لا كتاب معهما**. فممنوع
@@ -1705,6 +1757,7 @@ ${langRule(meta)}
 • المادة: ${meta.subject || '—'}   • الصف: ${meta.grade || '—'}   • القسم: ${meta.dept || '—'}
 • رقم الدرس: ${meta.lessonNo || '—'}   • الأسبوع: ${meta.week || '—'}   • الحصة: ${meta.period || '—'}
 • زمن الحصة: ${meta.duration || '٤٥ دقيقة'}   • الوحدة: ${meta.unit || '—'}
+${meta.title ? '• عنوان الدرس معتمد من الخطة الزمنية — استخدمه حرفيًا في lessonTitle: ' + meta.title : ''}
 ${meta.hint ? '• توجيه من المعلّم: ' + meta.hint : ''}
 
 الحقول المطلوبة:
@@ -1727,20 +1780,31 @@ ${meta.hint ? '• توجيه من المعلّم: ' + meta.hint : ''}
 11. warning — تنبيه واحد (سطران) عن خطأ شائع أو اشتراط سلامة في هذا الدرس تحديدًا.
 12. homework — تكليفان محدّدان مكتوبان بنصّهما الكامل وقيمهما، ينفّذهما الطالب
     دون الرجوع إلى أي كتاب أو مصدر خارجي.
-13. figure — **ارسم أنت** الشكل التوضيحي ولا تقتبس صورة من الكتاب:
-    caption عنوان قصير بلغة المحتوى، وsvg نصّ الرسم.
-    ارسم الفكرة المحورية في الدرس (الدائرة أو المخطط أو التركيب أو العلاقة).
-    وارسمه بـSVG نظيف بهذه القواعد الإلزامية:
-    • ابدأ بـ<svg viewBox="0 0 400 260"> وانتهِ بـ</svg>. لا تضع width ولا height.
-    • خطوط ومسارات وأشكال ونصوص فقط. ممنوع تمامًا: script · style · image · foreignObject
-      وأي رابط خارجي وأي خاصية on… — أي واحدة منها تُلغي الرسم كله.
-    • لونان فقط: الكحلي #16295C للخطوط والنصوص، والأحمر #C8102E لإبراز عنصر واحد مهم.
-      الخلفية بيضاء (لا ترسمها) وسمك الخط 2.
-    • اكتب وسوم العناصر بنصوص <text> قصيرة بحجم font-size="13" — بالإنجليزية أو بالرموز
-      الفنية (R1, 220V, L, N) لأن العربية داخل الرسم تنعكس. والأرقام لاتينية دائمًا.
-    • ارسم **ما يشرح الفكرة**: دائرة كهربائية أو مخطط أو رسم مقطعي أو جدول ألوان أو
-      مسار عملية — لا صورة زخرفية ولا إطارًا فارغًا.
-    • اجعله بسيطًا مقروءًا: من ٦ إلى ٢٥ عنصرًا. الرسم المزدحم غير مفيد على ورقة مطبوعة.
+13. figure — الشكل التوضيحي للدرس:
+    **القاعدة: صورة الكتاب أولًا، ورسمُك أنت بديلًا عند غيابها.**
+
+    أ) **لو في الصفحات المرفقة رسم أو مخطّط أو دائرة أو صورة توضيحية مفيدة** —
+       حدّد مكانه ولا ترسم شيئًا:
+       • page: رقم الصورة المرفقة التي فيه (تبدأ من ١)
+       • box_2d: إطاره [y1, x1, y2, x2] بقيم ٠..١٠٠٠ نسبةً لأبعاد تلك الصورة
+       • اجعل الإطار **حول الرسم كاملًا** بما فيه أرقام الأبعاد ووسوم العناصر،
+         وزد هامشًا بسيطًا. الإطار الناقص أسوأ من لا شيء.
+       • **ممنوع** أن تختار فقرة نصّية أو عنوانًا أو جدولًا أو ترويسة صفحة.
+         لو لم يوجد إلا نصّ فلا تضع box_2d إطلاقًا.
+       • واترك svg فارغًا في هذه الحالة.
+
+    ب) **لو لا يوجد رسم صالح في الصفحات** — اترك box_2d فارغًا وارسم أنت في svg:
+       • ابدأ بـ<svg viewBox="0 0 400 260"> وانتهِ بـ</svg>. لا width ولا height.
+       • خطوط ومسارات وأشكال ونصوص فقط. ممنوع تمامًا: script · style · image ·
+         foreignObject وأي رابط خارجي وأي خاصية on… — أي واحدة تُلغي الرسم كله.
+       • لونان: الكحلي #16295C للخطوط والنصوص، والأحمر #C8102E لإبراز عنصر واحد.
+         الخلفية بيضاء (لا ترسمها) وسمك الخط 2.
+       • الوسوم نصوص <text> قصيرة font-size="13" بالإنجليزية أو بالرموز الفنية
+         (R1, 220V, L, N) — العربية داخل الرسم تنعكس. والأرقام لاتينية دائمًا.
+       • ارسم ما يشرح الفكرة: دائرة أو مخطّط أو رسم مقطعي أو مسار عملية.
+       • بسيط مقروء: من ٦ إلى ٢٥ عنصرًا. المزدحم غير مفيد على ورقة مطبوعة.
+
+    في الحالتين: caption عنوان قصير للشكل بلغة المحتوى.
 
 ## ممنوع الإحالة إلى الكتاب — قاعدة صارمة
 ورقة التحضير هي كل ما بين يدي المعلّم والطالب؛ **لا كتاب معهما**. فممنوع منعًا باتًا
@@ -1894,17 +1958,176 @@ function normalizePrac(d, meta) {
   return d;
 }
 
-/* ===================== js/figure.js ===================== */
 /* =========================================================================
-   figure.js — الرسم التخطيطي الذي يرسمه النموذج
+   تمريرة المراجعة — الدقة قبل الشكل
 
-   لماذا لا نقصّ من الكتاب؟
-   القصّ كان يخرج ناقصًا أو يلتقط فقرة نصية على أنها رسم، لأن إحداثيات الإطار
-   التي يعطيها النموذج تقريبية. فصار النموذج **يرسم** الشكل بنفسه كـSVG نظيف
-   بألوان القالب — نتيجة موحّدة ومقروءة في كل درس وفي الطباعة بأي دقة.
+   النموذج في التمريرة الأولى منشغل بالبناء والتنسيق، فتمرّ عليه أخطاء رقمية
+   وفنية. هذه تمريرة ثانية مهمّتها واحدة: يقارن التحضير المكتوب بصفحات الكتاب
+   ويصحّح ما خالفها. لا يُعيد الصياغة ولا يضيف ولا يحذف — يصحّح فقط.
+   ========================================================================= */
+
+/** يجمع النصوص القابلة للمراجعة من التحضير في قائمة مسطّحة { path, text } */
+function reviewFields(d, prac) {
+  const out = [];
+  const push = (p, t) => { if (t && String(t).trim()) out.push({ path: p, text: String(t) }); };
+  const list = (k) => (d[k] || []).forEach((t, i) => push(`${k}.${i}`, t));
+
+  if (prac) {
+    push('topicTitle', d.topicTitle);
+    ['purpose', 'elements', 'materials', 'tools', 'safety', 'ppe'].forEach(list);
+    (d.steps || []).forEach((it, i) => {
+      push(`steps.${i}.heading`, it.heading);
+      push(`steps.${i}.body`, it.body);
+      (it.bullets || []).forEach((b, j) => push(`steps.${i}.bullets.${j}`, b));
+    });
+  } else {
+    push('lessonTitle', d.lessonTitle);
+    ['prerequisites', 'resources', 'strategies', 'activities', 'homework'].forEach(list);
+    ['cognitive', 'skill', 'affective'].forEach(g =>
+      ((d.objectives || {})[g] || []).forEach((t, i) => push(`objectives.${g}.${i}`, t)));
+    push('warmup', d.warmup);
+    push('warning', d.warning);
+    (d.content || []).forEach((it, i) => {
+      push(`content.${i}.heading`, it.heading);
+      push(`content.${i}.body`, it.body);
+      (it.bullets || []).forEach((b, j) => push(`content.${i}.bullets.${j}`, b));
+      (((it.table || {}).rows) || []).forEach((r, ri) =>
+        (r || []).forEach((c, ci) => push(`content.${i}.table.rows.${ri}.${ci}`, c)));
+    });
+    ((d.assessment || {}).questions || []).forEach((q, i) =>
+      push(`assessment.questions.${i}.question`, q.question));
+    (((d.drills || {}).rows) || []).forEach((r, ri) =>
+      (Array.isArray(r) ? r : [r]).forEach((c, ci) => push(`drills.rows.${ri}.${ci}`, c)));
+  }
+  return out;
+}
+
+const REVIEW_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    fixes: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: { path: S_STR, corrected: S_STR, reason: S_STR },
+        propertyOrdering: ['path', 'corrected', 'reason']
+      }
+    }
+  }
+};
+
+function buildReviewPrompt(items, prac) {
+  const who = prac ? 'مدرّب صناعي' : 'موجّه تربوي';
+  const lines = items.map(x => `${x.path} ::: ${x.text}`).join('\n');
+  return `أنت ${who} خبير، ومهمّتك **التدقيق فقط**.
+
+مرفق صفحات الدرس من الكتاب، وتحتها بنود تحضير مكتوبة منه. قارن كل بند بالكتاب
+وأبلغ عن **الأخطاء فقط**.
+
+يُعدّ خطأ يستوجب التصحيح:
+• رقم أو قيمة أو وحدة أو مقاس يخالف الكتاب (220 V بدل 380 V، 1.5 mm² بدل 2.5 mm²…)
+• قانون أو معادلة أو ترتيب خطوات مخالف لما في الكتاب
+• توصيلة أو علاقة فنية غير صحيحة (سلك التعادل يمرّ بالمفتاح مثلًا)
+• مصطلح فني خاطئ أو اسم عدّة غير صحيح
+• إحالة إلى الكتاب أو رقم صفحة أو رقم شكل (ممنوعة في هذه الورقة)
+
+**ليس خطأ** ولا تبلّغ عنه: أسلوب الصياغة · طول الجملة · الترتيب · علامات الترقيم ·
+اختيار الكلمات ما دام المعنى صحيحًا. لا تُعِد الصياغة لمجرد التحسين.
+
+لكل خطأ فقط: path كما هو حرفيًا، وcorrected النصّ المصحَّح كاملًا، وreason سبب
+قصير جدًا. ولو كل البنود سليمة أعِد fixes قائمة فارغة.
+
+البنود:
+${lines}`;
+}
+
+/** يطبّق التصحيحات على كائن التحضير — يُرجع عدد ما طُبِّق */
+function applyFixes(data, fixes, items) {
+  const known = new Set(items.map(x => x.path));
+  let n = 0;
+  (fixes || []).forEach(f => {
+    if (!f || !f.path || !f.corrected) return;
+    if (!known.has(f.path)) return;                 /* مسار لم نرسله = مرفوض */
+    const cur = getPath(data, f.path);
+    if (typeof cur !== 'string') return;
+    const next = String(f.corrected).trim();
+    if (!next || next === cur) return;
+    /* تصحيح يقلب النصّ رأسًا على عقب غالبًا إعادة صياغة لا تدقيق */
+    if (next.length > cur.length * 3 + 40) return;
+    setPath(data, f.path, next);
+    n++;
+  });
+  return n;
+}
+
+/** يراجع التحضير ويصحّحه. لا يفشل التوليد إن تعثّر — يُرجع 0 ويمضي. */
+async function reviewTahdeer({ apiKey, model, pages, data, prac, onProgress }) {
+  try {
+    const items = reviewFields(data, prac);
+    if (!items.length) return 0;
+    onProgress && onProgress('جارٍ مراجعة الأرقام والقوانين مقابل الكتاب…');
+
+    const parts = pages.map(canvasToPart);
+    parts.push({ text: buildReviewPrompt(items, prac) });
+    const body = {
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        temperature: 0.1, topP: 0.8, maxOutputTokens: 4096,
+        responseMimeType: 'application/json', responseSchema: REVIEW_SCHEMA
+      }
+    };
+    let res = await callModel(model || DEFAULT_MODEL, apiKey, body);
+    if (res.status === 404 && (model || DEFAULT_MODEL) !== FALLBACK_MODEL)
+      res = await callModel(FALLBACK_MODEL, apiKey, body);
+    if (!res.ok) return 0;
+
+    const json = await res.json();
+    const cand = json.candidates && json.candidates[0];
+    if (!cand) return 0;
+    const text = ((cand.content && cand.content.parts) || []).map(x => x.text || '').join('');
+    let out;
+    try { out = JSON.parse(text); }
+    catch (_) { const m = text.match(/\{[\s\S]*\}/); if (!m) return 0; out = JSON.parse(m[0]); }
+    return applyFixes(data, out.fixes, items);
+  } catch (e) {
+    console.warn('تعذّرت المراجعة:', e);
+    return 0;                                        /* المراجعة تحسين لا شرط */
+  }
+}
+
+/* ===== js/figure.js ===== */
+/* =========================================================================
+   figure.js — الشكل التوضيحي في ورقة التحضير
+
+   سلّم المصادر (بترتيب الأفضلية):
+   ١) صورة من الكتاب نفسه — هي الوحيدة المضمونة فنيًا لأنها من المنهج المعتمد.
+   ٢) الصورة نفسها بعد تنظيف **للعرض فقط**: شدّ الحدود ورفع التباين وإطار.
+      المحتوى الفني لا يُمسّ إطلاقًا.
+   ٣) رسم SVG يرسمه النموذج — فقط حين لا توجد صورة صالحة، وهو اقتراح يراجعه
+      المدرّس لا حقيقة مؤكَّدة.
+
+   شكل الكائن الموحَّد: { caption, src?, svg?, source }
+   source: 'book' (صورة الكتاب) | 'ai' (رسم النموذج)
+
+   ## التوافق مع الشغل المحفوظ
+   الإصدارات قبل v12 كانت تحفظ الأشكال في `data.figures = [{caption, src}]`.
+   v12 غيّرت المكان إلى `data.figure` فاختفت صور الدروس القديمة من الورقة
+   (البيانات لم تُمسّ — الراسم فقط توقّف عن البحث عنها). `readFigure()` تقرأ
+   الشكلين، فترجع الصور القديمة تلقائيًا بمجرّد فتح الدرس.
 
    الوارد من النموذج نصّ لا نثق به، فيمرّ على تعقيم صارم قبل إدراجه.
    ========================================================================= */
+
+/** تقرأ الشكل من بيانات الدرس مهما كانت صيغتها — القديمة أو الجديدة */
+function readFigure(data) {
+  if (!data) return null;
+  if (data.figure && (data.figure.svg || data.figure.src)) return data.figure;
+  /* صيغة ما قبل v12 */
+  const old = Array.isArray(data.figures) ? data.figures.find(f => f && f.src) : null;
+  if (old) return { caption: old.caption || 'الرسم التوضيحي', src: old.src,
+    w: old.w || 0, h: old.h || 0, source: 'book' };
+  return null;
+}
 
 /* الوسوم المسموح بها داخل الرسم — رسم هندسي بحت، بلا سكربت ولا موارد خارجية */
 const SVG_TAGS = new Set(['svg', 'g', 'defs', 'title', 'desc', 'marker', 'symbol', 'use',
@@ -1995,12 +2218,12 @@ function sanitizeSvg(raw, id) {
   return out.length > 60000 ? '' : out;      /* رسم ضخم = غالبًا هراء */
 }
 
-/** يبني كائن الشكل النهائي من مخرجات النموذج */
+/** يبني كائن الشكل النهائي من مخرجات النموذج (رسم تخطيطي) */
 function buildFigure(fig, id) {
   if (!fig) return null;
   const svg = sanitizeSvg(fig.svg, id);
   if (!svg) return null;
-  return { caption: (fig.caption || '').trim() || 'الرسم التوضيحي', svg };
+  return { caption: (fig.caption || '').trim() || 'الرسم التوضيحي', svg, source: 'ai' };
 }
 
 /** يحوّل SVG إلى PNG — يحتاجه ملف Word لأنه لا يعرض SVG في كل الإصدارات */
@@ -2031,7 +2254,258 @@ function svgToPng(svgText, wPx) {
   });
 }
 
-/* ===================== js/render.js ===================== */
+/** أبعاد صورة من data URL — يحتاجها ملف Word لضبط نسبة العرض للارتفاع */
+function imageSize(src) {
+  return new Promise(resolve => {
+    const i = new Image();
+    i.onload = () => resolve({ w: i.naturalWidth, h: i.naturalHeight });
+    i.onerror = () => resolve(null);
+    i.src = src;
+  });
+}
+
+
+/* =========================================================================
+   صورة من الكتاب: قصّ ← شدّ الحدود ← تنظيف للعرض
+   المحتوى الفني لا يُمسّ — ما يتغيّر هو العرض فقط (قصّ الفراغ، تقويم الإضاءة،
+   رفع التباين). هذا ما يجعل صورة الكتاب تبدو احترافية دون أن تصبح غير أمينة.
+   ========================================================================= */
+
+/** يقصّ مستطيلًا من صفحة حسب box_2d القادم من النموذج (0..1000: y1,x1,y2,x2) */
+function cropBox(canvas, box, pad) {
+  if (!Array.isArray(box) || box.length < 4) return null;
+  const v = box.map(Number);
+  if (v.some(isNaN)) return null;
+  const P = pad == null ? 0.015 : pad;
+  const l = Math.max(0, Math.min(v[1], v[3]) / 1000 - P) * canvas.width;
+  const t = Math.max(0, Math.min(v[0], v[2]) / 1000 - P) * canvas.height;
+  const r = Math.min(1, Math.max(v[1], v[3]) / 1000 + P) * canvas.width;
+  const b = Math.min(1, Math.max(v[0], v[2]) / 1000 + P) * canvas.height;
+  const w = Math.round(r - l), h = Math.round(b - t);
+  if (w < 60 || h < 45) return null;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(canvas, Math.round(l), Math.round(t), w, h, 0, 0, w, h);
+  return c;
+}
+
+/** عتبة الحبر: أي بكسل أغمق منها يُعدّ محتوى لا خلفية */
+function inkMask(cv) {
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  const d = g.getImageData(0, 0, cv.width, cv.height).data;
+  const lum = new Uint8Array(cv.width * cv.height);
+  let sum = 0;
+  for (let i = 0, k = 0; i < d.length; i += 4, k++) {
+    const y = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+    lum[k] = y; sum += y;
+  }
+  /* الورق فاتح؛ نعتبر الحبر ما نزل عن ٧٨٪ من متوسط الصفحة */
+  return { lum, thr: Math.max(40, Math.min(215, (sum / lum.length) * 0.78)) };
+}
+
+/** يشدّ حدود القصّة على الحبر الفعلي فيختفي الفراغ الأبيض الزائد */
+function trimToInk(cv, margin) {
+  const { lum, thr } = inkMask(cv);
+  const W = cv.width, H = cv.height;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (lum[y * W + x] < thr) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return null;                       /* لا حبر إطلاقًا */
+  const m = margin == null ? Math.round(Math.min(W, H) * 0.03) : margin;
+  x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m);
+  x1 = Math.min(W - 1, x1 + m); y1 = Math.min(H - 1, y1 + m);
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  if (w < 50 || h < 40) return null;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(cv, x0, y0, w, h, 0, 0, w, h);
+  return c;
+}
+
+
+/**
+ * يزيل أسطر النصّ الملتصقة بأعلى القصّة أو أسفلها.
+ * إطار النموذج غالبًا أوسع قليلًا من الرسم فيبتلع سطرين أو ثلاثة من متن الكتاب.
+ * التمييز بتحليل «الجَريات» في كل صف: سطر النصّ فيه جَريات حبر كثيرة قصيرة
+ * (حروف)، وصفّ الرسم فيه جَريات قليلة أو جَرية طويلة (خط أو إطار).
+ */
+function stripTextBands(cv) {
+  const { lum, thr } = inkMask(cv);
+  const W = cv.width, H = cv.height;
+  const isText = new Uint8Array(H);
+
+  for (let y = 0; y < H; y++) {
+    let runs = 0, maxRun = 0, cur = 0, ink = 0;
+    for (let x = 0; x < W; x++) {
+      if (lum[y * W + x] < thr) { cur++; ink++; }
+      else { if (cur) { runs++; if (cur > maxRun) maxRun = cur; } cur = 0; }
+    }
+    if (cur) { runs++; if (cur > maxRun) maxRun = cur; }
+    const f = ink / W;
+    /* خط أو إطار: جَرية طويلة ← ليس نصًّا مهما كان */
+    const graphic = maxRun > W * 0.22;
+    isText[y] = (!graphic && runs >= 7 && f > 0.02 && f < 0.42) ? 1 : 0;
+  }
+
+  /* سطر النصّ معظمه فراغ أبيض بين الحروف والأسطر، فقياس الكثافة صفًّا صفًّا
+     يخدع. نوسّع كل صفّ نصّي ليبتلع الفراغ حوله، فتصير منطقة النصّ كتلة متصلة. */
+  const rad = Math.max(10, Math.round(H * 0.045));
+  const region = new Uint8Array(H);
+  for (let y = 0; y < H; y++) {
+    if (!isText[y]) continue;
+    for (let k = Math.max(0, y - rad); k <= Math.min(H - 1, y + rad); k++) region[k] = 1;
+  }
+
+  let top = 0, bot = H - 1;
+  while (top < bot && region[top]) top++;
+  while (bot > top && region[bot]) bot--;
+
+  const h = bot - top + 1;
+  if (h < 40 || h < H * 0.22) return cv;          /* لا نقصّ قصًّا مدمّرًا */
+  if (top === 0 && bot === H - 1) return cv;
+
+  const c = document.createElement('canvas');
+  c.width = W; c.height = h;
+  c.getContext('2d').drawImage(cv, 0, top, W, h, 0, 0, W, h);
+  return c;
+}
+
+/**
+ * هل القصّة رسم أم فقرة نصّ؟
+ * النصّ المطبوع يظهر كأسطر حبر أفقية متتابعة بفواصل بيضاء منتظمة. نحسب نسبة
+ * الصفوف «النصّية» — لو غلبت على الصورة فهي فقرة لا رسم.
+ * تُرجع { textish, ink, ratio }.
+ */
+function looksLikeText(cv) {
+  const { lum, thr } = inkMask(cv);
+  const W = cv.width, H = cv.height;
+  const rowInk = new Float32Array(H);
+  let ink = 0;
+  for (let y = 0; y < H; y++) {
+    let n = 0;
+    for (let x = 0; x < W; x++) if (lum[y * W + x] < thr) n++;
+    rowInk[y] = n / W; ink += n;
+  }
+  ink /= (W * H);
+
+  /* عدّ تبدّلات «سطر فيه حبر ← سطر فارغ»: النصّ كثير التبدّل بانتظام */
+  let bands = 0, inBand = false;
+  const lo = 0.012, hi = 0.055;
+  for (let y = 0; y < H; y++) {
+    const on = rowInk[y] > hi;
+    if (on && !inBand) { bands++; inBand = true; }
+    else if (rowInk[y] < lo) inBand = false;
+  }
+  const bandsPerCm = bands / Math.max(1, H / 40);
+  return { textish: bands >= 4 && bandsPerCm > 1.1 && ink < 0.34, ink, bands };
+}
+
+/** تنظيف للعرض: توازن أبيض + رفع تباين + حدّة خفيفة. لا يغيّر المحتوى. */
+function enhanceScan(cv) {
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  const img = g.getImageData(0, 0, cv.width, cv.height);
+  const d = img.data;
+
+  /* مئين ٥٪ و٩٥٪ من الإضاءة لمدّ المدى الديناميكي */
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < d.length; i += 4)
+    hist[(d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0]++;
+  const total = d.length / 4;
+  let acc = 0, lo = 0, hi = 255;
+  for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > total * 0.05) { lo = v; break; } }
+  acc = 0;
+  for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > total * 0.05) { hi = v; break; } }
+  if (hi - lo < 25) { lo = 0; hi = 255; }
+
+  const map = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) {
+    let t = (v - lo) / (hi - lo);
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    /* منحنى S خفيف: يعمّق الخطوط ويبيّض الورق دون حرق التفاصيل */
+    t = t * t * (3 - 2 * t) * 0.85 + t * 0.15;
+    map[v] = Math.round(t * 255);
+  }
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = map[d[i]]; d[i + 1] = map[d[i + 1]]; d[i + 2] = map[d[i + 2]];
+  }
+  g.putImageData(img, 0, 0);
+  return cv;
+}
+
+/** يحدّ العرض الأقصى حتى لا تتضخّم الصورة في التخزين */
+function capWidth(cv, maxW) {
+  if (cv.width <= maxW) return cv;
+  const c = document.createElement('canvas');
+  c.width = maxW;
+  c.height = Math.round(cv.height * maxW / cv.width);
+  const g = c.getContext('2d');
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(cv, 0, 0, c.width, c.height);
+  return c;
+}
+
+/**
+ * يبني شكلًا من صورة الكتاب. يُرجع { ok, figure?, why? }
+ * الرفض أفضل من شكل ناقص: الورقة بلا رسم أهون من ورقة فيها نصف رسم.
+ */
+function figureFromBook(fig, pages) {
+  if (!fig || !Array.isArray(fig.box_2d) || !pages || !pages.length)
+    return { ok: false, why: 'لا إحداثيات' };
+
+  const pi = Math.max(0, Math.min(pages.length - 1, (parseInt(fig.page, 10) || 1) - 1));
+  let cv = cropBox(pages[pi], fig.box_2d);
+  if (!cv) return { ok: false, why: 'القصّة صغيرة جدًا' };
+
+  cv = stripTextBands(cv);                 /* يقصّ أسطر المتن من الحوافّ */
+  const trimmed = trimToInk(cv);
+  if (!trimmed) return { ok: false, why: 'القصّة فارغة' };
+  cv = stripTextBands(trimmed);            /* مرة ثانية بعد شدّ الحدود */
+  const t2 = trimToInk(cv);
+  if (t2) cv = t2;
+
+  const ar = cv.width / cv.height;
+  if (ar > 7 || ar < 0.14) return { ok: false, why: 'نسبة أبعاد شاذّة' };
+
+  const t = looksLikeText(cv);
+  if (t.textish) return { ok: false, why: 'فقرة نصّية لا رسم' };
+  if (t.ink < 0.004) return { ok: false, why: 'لا محتوى يُذكر' };
+
+  cv = enhanceScan(capWidth(cv, 1100));
+  return {
+    ok: true,
+    figure: {
+      caption: (fig.caption || '').trim() || 'الرسم التوضيحي',
+      src: cv.toDataURL('image/jpeg', 0.9),
+      /* الأبعاد إلزامية: بدونها يقيس المتصفّح الصورة بصفر قبل تحميلها،
+         فيمرّ الشكل من فحص الامتلاء ثم يتمدّد فيفيض عن الورقة. */
+      w: cv.width, h: cv.height,
+      source: 'book'
+    }
+  };
+}
+
+/**
+ * سلّم الشكل التوضيحي: صورة الكتاب ← رسم النموذج ← لا شيء.
+ * نحتفظ بالبديلين معًا في alts كي يستطيع المدرّس التبديل بينهما من المعاينة.
+ * يُرجع { figure, alts:{book, ai}, why } — why سبب رفض صورة الكتاب.
+ */
+function resolveFigure(fig, pages, id) {
+  let why = '', book = null;
+  if (fig && Array.isArray(fig.box_2d) && fig.box_2d.length >= 4) {
+    const r = figureFromBook(fig, pages);
+    if (r.ok) book = r.figure; else why = r.why;
+  }
+  const ai = buildFigure(fig, id);
+  return { figure: book || ai || null, alts: { book, ai }, why };
+}
+
+/* ===== js/render.js ===== */
 /* =========================================================================
    render.js — رسم ورقة التحضير وتقسيمها على صفحات A4 تلقائيًا
    ========================================================================= */
@@ -2124,7 +2598,8 @@ class Pager {
 
   newPage() {
     const id = this.id, meta = this.meta, data = this.data;
-    const page = el('div', 'page' + (data.contentLang === 'en' ? ' ltr-body' : ''));
+    const page = el('div', 'page ' + themeClass(currentTheme()) +
+      (data.contentLang === 'en' ? ' ltr-body' : ''));
 
     /* الشريط العلوي */
     const top = el('div', 'pg-top');
@@ -2262,29 +2737,71 @@ class Pager {
     return true;
   }
 
-  /* الورقة الأخيرة تُملأ: آخر صف لوحات يتمدّد ليأخذ الفراغ المتبقي بدل أن
-     تُطبع ثُلث ورقة بيضاء تحت التوقيعات. */
-  fillLast() {
-    const last = this.pages[this.pages.length - 1];
-    if (!last) return;
-    const flow = last.querySelector('.flow');
-    if (!flow) return;
-    const kids = [...flow.children];
-    /* التوقيعات تبقى بارتفاعها — نمدّد ما قبلها */
-    let target = null;
-    for (let i = kids.length - 1; i >= 0; i--) {
-      if (!kids[i].classList.contains('signs')) { target = kids[i]; break; }
+  /* الفراغ أسفل منطقة التدفّق بالبكسل.
+     scrollHeight لا يصلح: مع overflow:hidden لا ينزل عن clientHeight أبدًا. */
+  static slackOf(flow) {
+    const kids = flow.children;
+    if (!kids.length) return flow.clientHeight;
+    return flow.getBoundingClientRect().bottom -
+           kids[kids.length - 1].getBoundingClientRect().bottom;
+  }
+
+  /* ورقة التوقيعات وحدها قبيحة: ننقل إليها آخر لوحة من الورقة السابقة
+     فتصير ورقة محتوى وتوقيعات، بدل ٩٠٪ بياض تحت ثلاثة مربعات. */
+  tuckSignatures() {
+    if (this.pages.length < 2) return;
+    const last = this.pages[this.pages.length - 1].querySelector('.flow');
+    const prev = this.pages[this.pages.length - 2].querySelector('.flow');
+    if (!last || !prev) return;
+    const kids = [...last.children];
+    if (kids.length !== 1 || !kids[0].classList.contains('signs')) return;
+    const donor = prev.lastElementChild;
+    if (!donor || donor.classList.contains('signs')) return;
+    last.insertBefore(donor, kids[0]);
+    /* لو لم تتّسع بعد النقل نُرجعها — الورقة الفارغة أهون من ورقة فائضة */
+    if (Pager.slackOf(last) < 0) prev.appendChild(donor);
+  }
+
+  /* كل ورقة تُملأ: آخر لوحة فيها تتمدّد لتأخذ الفراغ المتبقي.
+     الفراغ الكبير جدًا لا يُمدّد — لوحة تنبيه بارتفاع نصف ورقة تبدو خطأً. */
+  balance() {
+    this.pages.forEach(pg => {
+      const flow = pg.querySelector('.flow');
+      if (!flow || !flow.children.length) return;
+      const kids = [...flow.children];
+      let target = null;
+      for (let i = kids.length - 1; i >= 0; i--) {
+        if (!kids[i].classList.contains('signs')) { target = kids[i]; break; }
+      }
+      if (!target) return;
+      const slack = Pager.slackOf(flow);
+      const h = flow.clientHeight;
+      if (slack > 26 && slack < h * 0.42) target.classList.add('grow');
+    });
+  }
+
+  /* شبكة أمان بعد الترقيم: أي ورقة فاض محتواها عن حدودها يُنقل آخر عنصر
+     فيها إلى التالية. قياس الامتلاء أثناء البناء يخطئ أحيانًا — الشكل
+     التوضيحي عائم (float) فلا يدخل في ارتفاع اللوحة، والصور تكبر بعد
+     تحميلها. هنا نقيس الحدود الفعلية بعد اكتمال كل شيء. */
+  enforceBounds() {
+    for (let i = 0; i < this.pages.length && i < 60; i++) {
+      const flow = this.pages[i].querySelector('.flow');
+      let guard = 0;
+      while (Pager.slackOf(flow) < -1 && flow.children.length > 1 && guard++ < 20) {
+        const moved = flow.lastElementChild;
+        let next = this.pages[i + 1];
+        if (!next) { this.newPage(); next = this.pages[this.pages.length - 1]; }
+        const nf = next.querySelector('.flow');
+        nf.insertBefore(moved, nf.firstChild);
+      }
     }
-    if (!target) return;
-    /* scrollHeight لا يصلح هنا: مع overflow:hidden لا ينزل عن clientHeight أبدًا،
-       فالفراغ يُقاس من أسفل آخر عنصر إلى أسفل منطقة التدفّق. */
-    const bottom = kids[kids.length - 1].getBoundingClientRect().bottom;
-    const slack = flow.getBoundingClientRect().bottom - bottom;
-    if (slack > 26) target.classList.add('grow');       /* أقل من ٧مم لا يستحق */
   }
 
   finish() {
-    this.fillLast();
+    this.enforceBounds();
+    this.tuckSignatures();
+    this.balance();
     const n = this.pages.length;
     this.pages.forEach((p, i) => {
       const t = p.querySelector('[data-pgno]');
@@ -2415,14 +2932,47 @@ function itemNode(it, idx, path) {
 }
 
 /* الشكل التوضيحي — رسم SVG يرسمه النموذج (لا قصّ من الكتاب) */
-function figureNode(fig) {
-  if (!fig || !fig.svg) return null;
-  const b = el('div', 'figbox');
-  b.innerHTML = `<div class="fh">${escHtml(fig.caption || (R_LTR ? 'Figure' : 'الرسم التوضيحي'))}</div>`;
+/* يعرض الشكل أيًّا كان مصدره: صورة من الكتاب أو رسم يرسمه النموذج.
+   الشريط العلوي يحمل أزرار اختيار المصدر — تظهر على الشاشة وتختفي في الطباعة. */
+function figureNode(fig, data) {
+  if (!fig || (!fig.svg && !fig.src)) return null;
+  const b = el('div', 'figbox' + (fig.source === 'ai' ? ' ai' : ''));
+  const h = el('div', 'fh');
+  h.appendChild(ed('span', 'cap', fig.caption || (R_LTR ? 'Figure' : 'الرسم التوضيحي'), 'figure.caption'));
+  b.appendChild(h);
+  /* الأزرار في سطر مستقلّ — مربع الرسم ضيّق فلا يتّسع للعنوان والأزرار معًا */
+  if (data) b.appendChild(figPicker(data));
   const fi = el('div', 'fi');
-  fi.innerHTML = fig.svg;                 /* مُعقَّم مسبقًا في figure.js */
+  /* width/height على الوسم نفسه يحجز المساحة قبل تحميل الصورة */
+  if (fig.src) fi.innerHTML = `<img src="${fig.src}" alt=""` +
+    (fig.w && fig.h ? ` style="aspect-ratio:${fig.w}/${fig.h}"` : '') + '>';
+  else fi.innerHTML = fig.svg;            /* مُعقَّم مسبقًا في figure.js */
   b.appendChild(fi);
   return b;
+}
+
+/* أزرار مصدر الرسم — القرار الأخير للمدرّس لا للنموذج */
+function figPicker(data) {
+  const alts = data.figAlts || {};
+  const cur = data.figure ? (data.figure.source || 'book') : 'none';
+  const box = el('div', 'fig-pick');
+  const opts = [
+    { k: 'book', t: 'رسم الكتاب', on: !!alts.book },
+    { k: 'ai',   t: 'رسم التطبيق', on: !!alts.ai },
+    { k: 'none', t: 'بدون رسم',   on: true }
+  ];
+  opts.forEach(o => {
+    if (!o.on) return;
+    const btn = el('button', 'fp' + (cur === o.k ? ' on' : ''), escHtml(o.t));
+    btn.type = 'button';
+    btn.onclick = e => {
+      e.preventDefault(); e.stopPropagation();
+      data.figure = (o.k === 'none') ? null : (alts[o.k] || null);
+      if (typeof onFigureChange === 'function') onFigureChange();
+    };
+    box.appendChild(btn);
+  });
+  return box;
 }
 
 function blankPanel(bp) {
@@ -2450,8 +3000,8 @@ function flowItems(pg, sec, items, data, opts) {
     /* الشكل التوضيحي يدخل أول لوحة تتّسع له — لا أول لوحة دائمًا.
        إقحامه في لوحة لا تسعه كان يدفع اللوحة كلها لصفحة جديدة ويترك
        ثلث الورقة السابقة فارغًا. */
-    if (!figDone && !opts.noFigure && data.figure) {
-      const f = figureNode(data.figure);
+    if (!figDone && !opts.noFigure && readFigure(data)) {
+      const f = figureNode(readFigure(data), data);
       if (f) {
         inner.parentNode.insertBefore(f, inner);
         if (pg.overflowing()) f.remove(); else figDone = true;
@@ -2550,7 +3100,7 @@ function defaultLogoSvg(id) {
   </svg>`;
 }
 
-/* ===================== js/practical.js ===================== */
+/* ===== js/practical.js ===== */
 /* =========================================================================
    practical.js — ورقة تحضير التدريب العملي (F-PR-03)
 
@@ -2601,16 +3151,20 @@ function pairsNode(arr, path) {
 /* مربع رسم التمرين — صورة مقصوصة من الكتاب، أو رسم بديل، أو إطار فارغ */
 function drawNode(data) {
   const box = el('div', 'drawbox');
-  const fig = data.figure || null;
+  const fig = readFigure(data);
   const kindLabel = (data.practKind === 'operation')
     ? 'رسم العملية / العدة والأدوات' : 'شكل التمرين المطلوب تنفيذه';
 
   const cap = el('div', 'dcap');
-  cap.appendChild(ed('span', '', data.drawing || (fig && fig.caption) || kindLabel, 'drawing'));
+  cap.appendChild(ed('span', 'cap', data.drawing || (fig && fig.caption) || kindLabel, 'drawing'));
+  if (data.figAlts) cap.appendChild(figPicker(data));
   box.appendChild(cap);
 
   const inner = el('div', 'dbody');
-  if (fig && fig.svg) {
+  if (fig && fig.src) {
+    inner.innerHTML = `<img src="${fig.src}" alt=""` +
+      (fig.w && fig.h ? ` style="aspect-ratio:${fig.w}/${fig.h}"` : '') + '>';
+  } else if (fig && fig.svg) {
     inner.innerHTML = fig.svg;                  /* مُعقَّم مسبقًا في figure.js */
     inner.classList.add('svgfig');
   } else {
@@ -2668,7 +3222,7 @@ function renderPractical(root, data, meta, id) {
   return pg.pages.length;
 }
 
-/* ===================== js/sheet.js ===================== */
+/* ===== js/sheet.js ===== */
 /* =========================================================================
    sheet.js — هيكل الورقة المشترك (شريط علوي · ترويسة الهوية · شريط سفلي)
    يستخدمه جدول الخطة الزمنية وغلاف المادة.
@@ -2748,7 +3302,8 @@ function watermarkTech(navy, kind) {
  */
 function makeSheet(id, opts) {
   opts = opts || {};
-  const page = el('div', 'page' + (opts.landscape ? ' land' : '') + (opts.cover ? ' cover' : ''));
+  const page = el('div', 'page ' + themeClass(currentTheme()) +
+    (opts.landscape ? ' land' : '') + (opts.cover ? ' cover' : ''));
 
   const top = el('div', 'pg-top');
   top.innerHTML = barSlashes();
@@ -2779,7 +3334,7 @@ function signRow(list, meta) {
   return sg;
 }
 
-/* ===================== js/plan.js ===================== */
+/* ===== js/plan.js ===== */
 /* =========================================================================
    plan.js — الخطة الزمنية للفصل الدراسي: محرّر الصفوف + جدول A4 عرضي
    ========================================================================= */
@@ -2840,22 +3395,41 @@ function planRenderEditor() {
     card.appendChild(hd);
 
     /* أسبوع بلا دروس: امتحان أو تعريفي — يُطبع في الخطة ويتخطّاه التحضير */
-    const offBar = el('label', 'wk-off');
+    const offBar = el('div', 'wk-off');
+    const lab = el('label', 'wk-off-lab');
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = !!r.off;
+    lab.appendChild(cb);
+    lab.appendChild(el('span', '', 'أسبوع بلا دروس'));
+    offBar.appendChild(lab);
+
+    /* السبب: قائمة جاهزة، وآخر خيار يفتح كتابة حرّة */
+    const known = PLAN_OFF_REASONS.includes(r.offReason);
+    const isOther = !!(r.off && r.offReason && !known);
+
     const sel = document.createElement('select');
     sel.innerHTML = PLAN_OFF_REASONS.map(x => `<option>${escHtml(x)}</option>`).join('');
-    sel.value = r.offReason || PLAN_OFF_REASONS[0];
+    sel.value = isOther ? PLAN_OFF_OTHER : (known ? r.offReason : PLAN_OFF_REASONS[0]);
     sel.hidden = !r.off;
-    cb.onchange = () => {
-      r.off = cb.checked;
-      r.offReason = cb.checked ? sel.value : '';
-      planRenderEditor();
+
+    const free = document.createElement('input');
+    free.type = 'text';
+    free.className = 'wk-off-free';
+    free.placeholder = 'اكتب السبب';
+    free.value = isOther ? r.offReason : '';
+    free.hidden = !(r.off && sel.value === PLAN_OFF_OTHER);
+
+    const sync = () => {
+      const other = sel.value === PLAN_OFF_OTHER;
+      free.hidden = !(cb.checked && other);
+      r.offReason = !cb.checked ? '' : (other ? free.value.trim() : sel.value);
     };
-    sel.onchange = () => { r.offReason = sel.value; };
-    offBar.appendChild(cb);
-    offBar.appendChild(el('span', '', 'أسبوع بلا دروس'));
+    cb.onchange = () => { r.off = cb.checked; sync(); planRenderEditor(); };
+    sel.onchange = sync;
+    free.oninput = sync;
+
     offBar.appendChild(sel);
+    offBar.appendChild(free);
     card.appendChild(offBar);
     if (r.off) { box.appendChild(card); return; }
 
@@ -2936,7 +3510,8 @@ function planRowNode(r, i, start) {
     tr.appendChild(el('td', 'c', toArabicDigits(i + 1)));
     tr.appendChild(el('td', 'c', escHtml(weekName(i + 1))));
     tr.appendChild(ed('td', 'c', weekSaturday(start, i + 1), null));
-    const td = el('td', 'c off-cell', escHtml(r.offReason || 'أسبوع بلا دروس'));
+    const reason = (r.offReason && r.offReason !== PLAN_OFF_OTHER) ? r.offReason : 'أسبوع بلا دروس';
+    const td = el('td', 'c off-cell', escHtml(reason));
     td.colSpan = 3;
     tr.appendChild(td);
     return tr;
@@ -2994,6 +3569,24 @@ function renderPlan(root, p, id) {
   sheet.flow.appendChild(sg);
   if (overflowing()) { sheet.flow.removeChild(sg); openPage(); sheet.flow.appendChild(sg); }
 
+  /* الفراغ المتبقي يُوزَّع على صفوف الجدول كارتفاع إضافي — صفوف أوسع قليلًا
+     أفضل من خُمس ورقة أبيض أسفلها. التوزيع محسوب بالضبط فلا يفيض. */
+  pages.forEach(pg => {
+    const fl = pg.querySelector('.flow');
+    const tb = pg.querySelector('table.pl');
+    if (!fl || !tb || !fl.children.length) return;
+    const last = fl.lastElementChild;
+    const r = fl.getBoundingClientRect();
+    /* الورقة مُصغَّرة بـtransform في المعاينة، وgetBoundingClientRect يعطي
+       بكسلات مُقاسة. الحشو يُكتب ببكسلات تخطيط غير مُقاسة، فنقسم على النسبة. */
+    const scale = (r.height && fl.clientHeight) ? (r.height / fl.clientHeight) : 1;
+    const slack = (r.bottom - last.getBoundingClientRect().bottom) / (scale || 1);
+    const n = tb.querySelectorAll('tbody tr').length;
+    if (slack < 16 || !n) return;
+    tb.style.setProperty('--pl-extra', Math.floor((slack - 6) / n) + 'px');
+    tb.classList.add('stretch');
+  });
+
   /* أرقام الصفحات */
   pages.forEach((pg, k) => {
     const t = pg.querySelector('[data-pgno]');
@@ -3020,7 +3613,7 @@ function planMetaStrip(meta) {
   return s;
 }
 
-/* ===================== js/camera.js ===================== */
+/* ===== js/camera.js ===== */
 /* =========================================================================
    camera.js — تصوير صفحات الكتاب داخل التطبيق
 
@@ -3173,7 +3766,7 @@ function bindCamera() {
   });
 }
 
-/* ===================== js/library.js ===================== */
+/* ===== js/library.js ===== */
 /* =========================================================================
    library.js — شاشة المكتبة (المواد) وشاشة المادة (الغلاف · الخطة · الدروس)
    ========================================================================= */
@@ -3543,7 +4136,7 @@ function importBackup() {
   fi.click();
 }
 
-/* ===================== js/draft.js ===================== */
+/* ===== js/draft.js ===== */
 /* =========================================================================
    draft.js — شبكة أمان: يحفظ الشغل غير المكتمل ويرجّعه لو أُعيد تحميل التطبيق
 
@@ -3635,7 +4228,7 @@ function bindDraft() {
   window.addEventListener('pagehide', () => { draftSave().catch(() => {}); });
 }
 
-/* ===================== js/cover.js ===================== */
+/* ===== js/cover.js ===== */
 /* =========================================================================
    cover.js — غلاف المادة: ورقة A4 رسمية بهوية عامة تصلح لكل التخصصات
    ========================================================================= */
@@ -3690,13 +4283,14 @@ function renderCover(root, meta, id) {
   return 1;
 }
 
-/* ===================== js/app.js ===================== */
+/* ===== js/app.js ===== */
 /* =========================================================================
    app.js — منطق التطبيق
    ========================================================================= */
 const LS = {
   key: 'thd.apiKey', model: 'thd.model', id: 'thd.identity',
-  meta: 'thd.meta', pmeta: 'thd.pmeta', last: 'thd.last',
+  meta: 'thd.meta', pmeta: 'thd.pmeta', last: 'thd.last', review: 'thd.review',
+  theme: 'thd.theme',
   plan: 'thd.plan', planRows: 'thd.planRows', cover: 'thd.cover'
 };
 const $ = s => document.querySelector(s);
@@ -3710,6 +4304,12 @@ const store = {
 function currentModel() {
   const m = store.get(LS.model, DEFAULT_MODEL);
   return GEMINI_MODELS.some(x => x.id === m) ? m : DEFAULT_MODEL;
+}
+
+/* ستايل الورقة المختار — يُطبَّق على كل الأوراق المرسومة */
+function currentTheme() {
+  const t = store.get(LS.theme, THEME_DEFAULT);
+  return SHEET_THEMES.some(x => x.id === t) ? t : THEME_DEFAULT;
 }
 
 const state = {
@@ -3798,9 +4398,12 @@ function buildMetaForm() {
   const saved = store.get(isPrac() ? LS.pmeta : LS.meta, {});
   g.innerHTML = '';
   $('#cardMetaTitle').textContent = isPrac() ? 'بيانات جلسة التدريب' : 'بيانات الحصة';
-  $('#metaHint').placeholder = isPrac()
+  const hint = $('#metaHint');
+  hint.placeholder = isPrac()
     ? 'مثال: التمرين يُنفّذ في مجموعتين، أو ركّز على القياس'
     : 'مثال: ركّز على التطبيق العملي، أو الدرس يُشرح في حصتين';
+  /* التوجيه خاصّ بدرس واحد — لو بقي من الدرس السابق لوّث تحضير التالي */
+  hint.value = '';
   metaFields().forEach(f => {
     const lab = document.createElement('label');
     lab.className = 'field';
@@ -3905,13 +4508,31 @@ async function generate() {
       apiKey, model: currentModel(), kind: isPrac() ? 'prac' : 'prep',
       pages: state.pages, meta, onProgress: m => busy(true, m)
     });
+    /* تمريرة المراجعة: تصحّح الأرقام والقوانين مقابل الكتاب قبل بناء الورقة */
+    let fixed = 0;
+    if (store.get(LS.review, true)) {
+      fixed = await reviewTahdeer({
+        apiKey, model: currentModel(), pages: state.pages,
+        data, prac: isPrac(), onProgress: m => busy(true, m)
+      });
+    }
+
+    /* عنوان الخطة يغلب اجتهاد النموذج */
+    if (meta.title) {
+      if (isPrac()) data.topicTitle = meta.title; else data.lessonTitle = meta.title;
+    }
     busy(true, 'جارٍ تجهيز الرسم التوضيحي وتنسيق الورقة…');
-    data.figure = buildFigure(data.figure, state.id);
+    const fg = resolveFigure(data.figure, state.pages, state.id);
+    data.figure = fg.figure;
+    data.figAlts = fg.alts;          /* البديلان محفوظان للتبديل من المعاينة */
+    if (fg.why) console.info('صورة الكتاب رُفضت:', fg.why);
     state.data = data;
     await saveLesson();
     showResult();
     await draftClear();
-    toast(isPrac() ? 'تم إنشاء تحضير التدريب العملي وحفظه' : 'تم إنشاء التحضير وحفظه في المادة');
+    toast(fixed
+      ? `تم التحضير وحفظه — وصُحِّح ${toArabicDigits(fixed)} ${fixed === 1 ? 'بند' : 'بنود'} في المراجعة`
+      : (isPrac() ? 'تم إنشاء تحضير التدريب العملي وحفظه' : 'تم إنشاء التحضير وحفظه في المادة'));
   } catch (e) {
     console.error(e);
     setStatus(e.message || 'حدث خطأ غير متوقع', true);
@@ -3932,6 +4553,12 @@ function showResult() {
   fitPaper();
   wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
   setStatus(`التحضير جاهز في ${toArabicDigits(n)} ${n === 1 ? 'صفحة' : 'صفحات'}`);
+}
+
+/* يُنادى عند تبديل مصدر الرسم من المعاينة */
+function onFigureChange() {
+  saveLesson();
+  showResult();
 }
 
 let reflowT;
@@ -4061,26 +4688,34 @@ async function fillFromPlan(sub, doneCount) {
   const doc = await DB.doc('plan', sub.id);
   if (!doc || !doc.payload) return;
 
-  const weeks = planTeachingWeeks({ meta: doc.payload.meta || {}, rows: doc.payload.rows || [] });
+  const pm = doc.payload.meta || {};
+  const weeks = planTeachingWeeks({ meta: pm, rows: doc.payload.rows || [] });
   if (!weeks.length) return;
 
   const w = weeks[Math.min(doneCount, weeks.length - 1)];
+  /* لا نطمس ما كتبه المدرّس بيده */
   const set = (k, v) => { const e = $('#m_' + k); if (e && v && !e.value) e.value = v; };
 
-  set('week', toArabicDigits(w.weekNo));
-  set('unit', w.unit);
+  set('week',    toArabicDigits(w.weekNo));
+  set('unit',    w.unit);
+  set('subject', pm.subject);
+  set('grade',   pm.grade);
+  set('dept',    pm.dept);              /* التخصص */
+  set('teacher', pm.teacher);
+  set('title',   w.titles[0] || '');    /* اسم الدرس كما في الخطة */
+  
   if (w.isoDate) { const e = $('#m_date'); if (e) e.value = w.isoDate; }
-  if (doc.payload.meta && doc.payload.meta.subject) set('subject', doc.payload.meta.subject);
 
-  /* عنوان الدرس المخطَّط يُعرض توجيهًا للنموذج لا فرضًا عليه */
   const title = w.titles[0] || '';
+  const desc = (w.descs && w.descs[0]) || '';
   const hint = $('#metaHint');
-  if (title && hint && !hint.value) hint.value = 'درس الخطة لهذا الأسبوع: ' + title;
+  if (desc && hint && !hint.value) hint.value = 'وصف الخطة: ' + desc;
 
   const rest = weeks.length - doneCount - 1;
+  const what = (state.mode === 'prac') ? 'الموضوع' : 'الدرس';
   setStatus(title
-    ? `الأسبوع ${toArabicDigits(w.weekNo)} حسب الخطة: «${title}»` +
-      (rest > 0 ? ` — باقي ${toArabicDigits(rest)} أسبوع دراسة` : '')
+    ? `${what} ${toArabicDigits(w.weekNo)} — الأسبوع ${toArabicDigits(w.weekNo)} حسب الخطة: «${title}»` +
+      (rest > 0 ? ` · باقي ${toArabicDigits(rest)} أسبوع دراسة` : ' · آخر أسبوع في الخطة')
     : `الأسبوع ${toArabicDigits(w.weekNo)} حسب الخطة`);
 }
 
@@ -4335,6 +4970,8 @@ function buildSettings() {
 async function openSettings() {
   buildSettings();
   $('#setTeacher').value = await DB.get('teacher', '');
+  $('#setReview').checked = store.get(LS.review, true);
+  buildThemePicker();
   await renderStorageBox();
   $('#settingsBack').hidden = false;
 }
@@ -4381,6 +5018,7 @@ function closeSettings() { $('#settingsBack').hidden = true; }
 async function saveSettings() {
   store.set(LS.key, $('#apiKey').value.trim());
   store.set(LS.model, $('#modelSel').value);
+  store.set(LS.review, $('#setReview').checked);
   ID_FIELDS.forEach(f => { state.id[f.k] = ($('#id_' + f.k).value || '').trim(); });
   store.set(LS.id, state.id);
   await DB.set('identity', state.id);
@@ -4453,6 +5091,102 @@ async function doWord() {
   } catch (e) {
     console.error(e); toast('تعذّر إنشاء ملف Word: ' + ((e && e.message) || e), true);
   } finally { busy(false); }
+}
+
+/* ---------------- اختيار شكل الورقة ---------------- */
+function themeSwatch(t) {
+  const on = (t.id === currentTheme());
+  const c = el('button', 'thm' + (on ? ' on' : ''));
+  c.type = 'button';
+  c.innerHTML =
+    `<span class="thm-pv ${t.cls || 't-official'}">
+       <i class="b1"></i><i class="hd"></i><i class="r1"></i><i class="r2"></i>
+       <i class="p1"></i><i class="p2"></i><i class="b2"></i>
+     </span>
+     <b>${escHtml(t.name)}</b><em>${escHtml(t.desc)}</em>`;
+  c.onclick = () => {
+    store.set(LS.theme, t.id);
+    buildThemePicker();
+    /* معاينة حيّة: نعيد رسم ما هو معروض الآن */
+    if (state.data && Lib.screen === 'work') showResult();
+    else if (Lib.screen === 'work' && state.mode === 'plan') makePlan();
+    else if (Lib.screen === 'work' && state.mode === 'cover') makeCover();
+    toast('شكل الورقة: ' + t.name);
+  };
+  return c;
+}
+
+function buildThemePicker() {
+  const g = $('#themeGrid');
+  if (!g) return;
+  g.innerHTML = '';
+  SHEET_THEMES.forEach(t => g.appendChild(themeSwatch(t)));
+}
+
+/* =========================================================================
+   تحديث التطبيق — إشعار للمدرّس بدل تحديث صامت
+
+   عامل الخدمة الجديد ينتظر (لا skipWaiting في install)، فنُظهر شريطًا
+   ونفعّله بضغطة. بدون هذا يظلّ المدرّس على نسخة قديمة حتى يقفل التطبيق
+   ثلاث مرات، أو يتبدّل التطبيق تحت يده وهو يحضّر درسًا.
+   ========================================================================= */
+const UPD_FLAG = 'thd.justUpdated';
+let _waitingSW = null;
+
+function showUpdateBar(sw) {
+  _waitingSW = sw;
+  const bar = $('#updBar');
+  if (bar) bar.hidden = false;
+}
+
+function setupUpdates() {
+  /* رسالة النجاح بعد إعادة التحميل */
+  try {
+    if (sessionStorage.getItem(UPD_FLAG)) {
+      sessionStorage.removeItem(UPD_FLAG);
+      setTimeout(() => toast('تم التحديث بنجاح · تحيات Mohamed_Eldawly'), 900);
+    }
+  } catch (_) {}
+
+  $('#btnUpdLater').onclick = () => { $('#updBar').hidden = true; };
+  $('#btnUpdate').onclick = () => {
+    if (!_waitingSW) return location.reload();
+    try { sessionStorage.setItem(UPD_FLAG, '1'); } catch (_) {}
+    $('#updBar').hidden = true;
+    busy(true, 'جارٍ تحميل التحديث…');
+    _waitingSW.postMessage({ type: 'SKIP_WAITING' });
+    /* لو لم يصل controllerchange لأي سبب، نعيد التحميل بأنفسنا */
+    setTimeout(() => location.reload(), 2500);
+  };
+
+  if (!('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    /* نسخة جاهزة ومنتظرة من جلسة سابقة */
+    if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg.waiting);
+
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      if (!sw) return;
+      sw.addEventListener('statechange', () => {
+        /* controller موجود = ليست أول زيارة، إذن هذا تحديث لا تثبيت */
+        if (sw.state === 'installed' && navigator.serviceWorker.controller) showUpdateBar(sw);
+      });
+    });
+
+    /* نسأل عن تحديث عند الفتح وكل ربع ساعة وعند العودة للتطبيق */
+    const check = () => reg.update().catch(() => {});
+    setTimeout(check, 3000);
+    setInterval(check, 15 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  }).catch(() => {});
+
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
 }
 
 /* ---------------- 7) التثبيت كتطبيق ---------------- */
@@ -4539,9 +5273,7 @@ function init() {
     deferredPrompt = null; $('#btnInstall').hidden = true;
   };
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
+  setupUpdates();
 
   boot();
 }

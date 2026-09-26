@@ -250,11 +250,20 @@
         <span>النموذج</span>
         <select id="modelSel"></select>
       </label>
+      <label class="chk">
+        <input type="checkbox" id="setReview" checked>
+        <span><b>مراجعة الدقة بعد التحضير</b>
+          <em>يقارن التحضير بصفحات الكتاب ويصحّح الأرقام والقوانين. يضيف بضع ثوانٍ ويستهلك طلبًا إضافيًا من حصتك.</em></span>
+      </label>
       <hr>
       <label class="field">
         <span>اسم المدرس <em>(يظهر على كل الأوراق والتوقيعات)</em></span>
         <input type="text" id="setTeacher" placeholder="الاسم كما يُكتب في التوقيع">
       </label>
+      <hr>
+      <h4>شكل الورقة المطبوعة</h4>
+      <p class="note">الهيكل والحقول والتوقيعات ورقم النموذج واحدة في الثلاثة — يتغيّر الشكل فقط.</p>
+      <div id="themeGrid" class="theme-grid"></div>
       <hr>
       <h4>أمان شغلك</h4>
       <div id="storeBox" class="store-box"></div>
@@ -346,6 +355,19 @@
 <div class="overlay" id="overlay" hidden>
   <div class="spinner"></div>
   <p id="overlayMsg">جارٍ العمل…</p>
+</div>
+
+<!-- ======================= شريط التحديث =======================
+     يظهر حين ينزل إصدار جديد، ولا يفعّله إلا ضغط المدرّس. -->
+<div class="upd" id="updBar" hidden>
+  <div class="upd-tx">
+    <b>في تحديث جديد للتطبيق</b>
+    <span>اضغط «حدّث الآن» لتحميله — شغلك محفوظ ولن يتأثّر.</span>
+  </div>
+  <button class="upd-go" id="btnUpdate">حدّث الآن</button>
+  <button class="upd-x" id="btnUpdLater" title="لاحقًا" aria-label="لاحقًا">
+    <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
+  </button>
 </div>
 
 <div class="toast" id="toast" hidden></div>

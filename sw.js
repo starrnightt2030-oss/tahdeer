@@ -1,5 +1,5 @@
 /* عامل الخدمة — يجعل التطبيق يعمل بدون إنترنت بعد أول فتح */
-const CACHE = 'tahdeer-v12-flat';
+const CACHE = 'tahdeer-v15-flat';
 const ASSETS = [
   './', './index.html',
   './tahdeer.css', './tahdeer.js',
@@ -8,12 +8,17 @@ const ASSETS = [
   './icon-192.png', './icon-512.png', './icon-maskable-512.png'
 ];
 
+/* لا نستدعي skipWaiting هنا عمدًا: النسخة الجديدة تنتظر حتى يضغط المدرّس
+   «حدّث الآن»، فلا يُسحب التطبيق من تحته وهو في منتصف تحضير درس. */
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE)
-      .then(c => Promise.allSettled(ASSETS.map(a => c.add(a))))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => Promise.allSettled(ASSETS.map(a => c.add(a))))
   );
+});
+
+/* الصفحة تطلب التفعيل عند ضغط زر التحديث */
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
