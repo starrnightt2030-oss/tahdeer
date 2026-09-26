@@ -497,6 +497,12 @@ body{ background:
   @keyframes rise{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
 }
 
+/* زر ثانوي داخل شريط النسخ الاحتياطي */
+.bk .bk-act.ghosty{ background:transparent; border:1px solid currentColor; opacity:.8;
+  font-weight:700 }
+.store-box .sr.tip > div{ font-size:11.5px; color:var(--mut); line-height:1.7 }
+.store-box .sr.tip b{ color:var(--navy) }
+
 /* =========================================================================
    paper.css — تصميم ورقة التحضير (A4) — مطابق للنموذج المعتمد
    ========================================================================= */

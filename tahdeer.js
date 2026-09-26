@@ -201,9 +201,24 @@ const Persist = {
    النسخ الاحتياطي إلى مجلد حقيقي على الجهاز
    ========================================================================= */
 const BACKUP_FILE = 'tahdeer-backup.json';
+/* =========================================================================
+   النسخ الاحتياطي إلى مجلد على الجهاز
+
+   ملاحظة مهمة عن الإذن:
+   إذن الوصول لمجلد لا يدوم بين الجلسات إلا في التطبيق **المثبَّت** على
+   الشاشة الرئيسية (كروم يُديمه تلقائيًا)، أو إن اختار المستخدم
+   «السماح في كل زيارة» في نافذة الإذن. وفي تبويب متصفّح عادي يعود الإذن
+   إلى «prompt» مع كل فتح.
+
+   لذلك **لا نطلب الإذن عند فتح التطبيق** — كان يظهر شريط تأكيد في كل مرة
+   حتى لو لم يُنجز المدرّس شيئًا. نؤجّل الطلب إلى لحظة وجود شغل يستحق
+   الحفظ فعلًا (حالة armed)، فيُسأل مرة واحدة وقت الحاجة لا مع كل فتح.
+   ========================================================================= */
 const Backup = {
   dir: null,
-  status: 'off',        /* off | ready | needPermission | error | unsupported */
+  /* off | armed | ready | needPermission | error | unsupported */
+  status: 'off',
+  pending: false,       /* يوجد شغل ينتظر النسخ */
   lastAt: 0,
   lastError: '',
 
@@ -218,8 +233,9 @@ const Backup = {
     Backup.dir = h;
     try {
       const p = await h.queryPermission({ mode: 'readwrite' });
-      Backup.status = (p === 'granted') ? 'ready' : 'needPermission';
-    } catch (_) { Backup.status = 'needPermission'; }
+      /* «armed» = المجلد مختار والإذن سيُطلب عند أول حفظ، لا الآن */
+      Backup.status = (p === 'granted') ? 'ready' : 'armed';
+    } catch (_) { Backup.status = 'armed'; }
     Backup.lastAt = await DB.get('backupAt', 0);
   },
 
@@ -244,7 +260,7 @@ const Backup = {
   },
 
   async disable() {
-    Backup.dir = null; Backup.status = 'off';
+    Backup.dir = null; Backup.status = 'off'; Backup.pending = false;
     await DB.set('backupDir', null);
   },
 
@@ -252,12 +268,18 @@ const Backup = {
     if (!Backup.dir) return false;
     try {
       const p = await Backup.dir.queryPermission({ mode: 'readwrite' });
-      if (p !== 'granted') { Backup.status = 'needPermission'; return false; }
+      if (p !== 'granted') {
+        /* الآن فقط نُظهر طلب التأكيد — لأن هناك شغلًا ينتظر */
+        Backup.status = 'needPermission';
+        Backup.pending = true;
+        return false;
+      }
       const fh = await Backup.dir.getFileHandle(BACKUP_FILE, { create: true });
       const w = await fh.createWritable();
       await w.write(JSON.stringify(await DB.exportAll()));
       await w.close();
       Backup.status = 'ready';
+      Backup.pending = false;
       Backup.lastAt = Date.now();
       Backup.lastError = '';
       await DB.set('backupAt', Backup.lastAt);
@@ -4060,14 +4082,21 @@ function renderBackupBar() {
   const b = $('#backupBar');
   if (!b) return;
   const p = Persist.state === 'granted';
-  let cls = 'bk', txt = '', act = '';
+  let cls = 'bk', txt = '', act = '', act2 = '';
 
   if (Backup.status === 'ready') {
     cls += ' ok';
     txt = 'النسخ الاحتياطي التلقائي مُفعَّل' +
       (Backup.lastAt ? ' · آخر نسخة ' + new Date(Backup.lastAt).toLocaleString('ar-EG') : '');
+  } else if (Backup.status === 'armed') {
+    /* المجلد مختار والإذن سيُطلب عند أول حفظ — لا داعي لإزعاج المدرّس الآن */
+    cls += ' ok';
+    txt = 'النسخ الاحتياطي جاهز — يُطلب تأكيد الإذن عند أول حفظ' +
+      (Backup.lastAt ? ' · آخر نسخة ' + new Date(Backup.lastAt).toLocaleString('ar-EG') : '');
   } else if (Backup.status === 'needPermission') {
-    cls += ' warn'; txt = 'مجلد النسخ الاحتياطي يحتاج تأكيد الإذن'; act = 'تأكيد';
+    cls += ' warn';
+    txt = 'شغلك جاهز للنسخ — اضغط «تأكيد» لحفظه في مجلدك';
+    act = 'تأكيد'; act2 = 'إيقاف النسخ';
   } else if (Backup.status === 'error') {
     cls += ' bad'; txt = 'تعذّر الكتابة في مجلد النسخ الاحتياطي'; act = 'إعادة الاختيار';
   } else if (Backup.status === 'unsupported') {
@@ -4083,6 +4112,18 @@ function renderBackupBar() {
     const btn = el('button', 'bk-act', act);
     btn.onclick = backupAction;
     b.appendChild(btn);
+  }
+  if (act2) {
+    const btn2 = el('button', 'bk-act ghosty', act2);
+    btn2.onclick = async () => {
+      const ok = await ask('إيقاف النسخ الاحتياطي التلقائي إلى المجلد؟ يبقى شغلك محفوظًا على الجهاز، ' +
+        'ويمكنك دائمًا «تصدير نسخة» يدويًا.', { title: 'إيقاف النسخ التلقائي', yes: 'أوقفه', danger: false });
+      if (ok !== true) return;
+      await Backup.disable();
+      toast('أُوقف النسخ التلقائي');
+      renderBackupBar();
+    };
+    b.appendChild(btn2);
   }
 }
 
@@ -4986,9 +5027,12 @@ async function renderStorageBox() {
     : (Persist.state === 'unsupported'
       ? '<b class="w">غير مدعوم في هذا المتصفح</b>'
       : '<b class="w">غير مُفعَّل</b> — ثبّت التطبيق على الشاشة الرئيسية ليُفعَّل');
+  const lastTxt = Backup.lastAt ? ' — آخر نسخة ' + new Date(Backup.lastAt).toLocaleString('ar-EG') : '';
   const bkTxt = {
-    ready: '<b class="g">مُفعَّل ✓</b>' + (Backup.lastAt ? ' — آخر نسخة ' + new Date(Backup.lastAt).toLocaleString('ar-EG') : ''),
-    needPermission: '<b class="w">يحتاج تأكيد الإذن</b>',
+    ready: '<b class="g">مُفعَّل ✓</b>' + lastTxt,
+    armed: '<b class="g">مُفعَّل ✓</b>' + lastTxt +
+      ' — يُطلب تأكيد الإذن عند أول حفظ في كل جلسة ما لم يكن التطبيق مثبَّتًا',
+    needPermission: '<b class="w">ينتظر تأكيد الإذن</b>',
     error: '<b class="r">تعذّر الكتابة</b> — ' + escHtml(Backup.lastError || ''),
     unsupported: '<b class="w">غير مدعوم</b> — استخدم التصدير اليدوي',
     off: '<b class="w">غير مُفعَّل</b> — شغلك على هذا الجهاز فقط'
@@ -4997,11 +5041,14 @@ async function renderStorageBox() {
   b.innerHTML =
     `<div class="sr"><span>التخزين الدائم</span><div>${persistTxt}</div></div>` +
     `<div class="sr"><span>نسخة احتياطية تلقائية</span><div>${bkTxt}</div></div>` +
+    ((Backup.status === 'armed' || Backup.status === 'needPermission') && Persist.state !== 'granted'
+      ? '<div class="sr tip"><span></span><div>المتصفّح لا يحفظ إذن المجلد بين الجلسات إلا للتطبيق ' +
+        '<b>المثبَّت على الشاشة الرئيسية</b> — ثبّته ليختفي طلب التأكيد نهائيًا.</div></div>' : '') +
     (u ? `<div class="sr"><span>المستخدم من مساحة الجهاز</span><div><b>${mb(u.used)}</b>${u.quota ? ' من ' + mb(u.quota) : ''}</div></div>` : '');
 
   const row = el('div', 'store-btns');
   const mk = (label, cls, fn) => { const x = el('button', cls, label); x.onclick = fn; return x; };
-  if (Backup.status === 'ready') {
+  if (Backup.status === 'ready' || Backup.status === 'armed') {
     row.appendChild(mk('نسخ الآن', 'ghost', async () => { await Backup.run(true); await renderStorageBox(); renderBackupBar(); toast('تم تحديث النسخة'); }));
     row.appendChild(mk('تغيير المجلد', 'ghost', async () => { try { await Backup.choose(); } catch (_) {} await renderStorageBox(); renderBackupBar(); }));
     row.appendChild(mk('إيقاف', 'ghost danger', async () => { await Backup.disable(); await renderStorageBox(); renderBackupBar(); }));
