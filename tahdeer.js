@@ -137,41 +137,55 @@ const DB = {
 
   async importAll(data, mode) {
     if (!data || data.app !== 'tahdeer') throw new Error('الملف ليس نسخة احتياطية صالحة لهذا التطبيق.');
+    const list = v => Array.isArray(v) ? v.filter(x => x && typeof x === 'object') : [];
+    const subjects = list(data.subjects), lessons = list(data.lessons), docs = list(data.docs)
+      .filter(c => c.kind === 'cover' || c.kind === 'plan');
+    if (!subjects.length && !lessons.length && !docs.length)
+      throw new Error('ملف النسخة الاحتياطية فارغ — لم يُغيَّر شيء في مكتبتك.');
     const d = await dbOpen();
-    return new Promise((res, rej) => {
-      const t = d.transaction(['subjects', 'lessons', 'docs', 'kv'], 'readwrite');
+    const done = t => new Promise((res, rej) => {
+      t.oncomplete = () => res(true);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error || new Error('أُلغيت عملية الاستيراد — مكتبتك لم تتغيّر.'));
+    });
+
+    if (mode === 'replace') {
+      /* الاستبدال في معاملة واحدة: لو فشل أي جزء لا يُمسح شيء من المكتبة الحالية */
+      const t = d.transaction(['subjects', 'lessons', 'docs'], 'readwrite');
       const S = t.objectStore('subjects'), L = t.objectStore('lessons'), C = t.objectStore('docs');
-      if (mode === 'replace') { S.clear(); L.clear(); C.clear(); }
+      S.clear(); L.clear(); C.clear();
+      subjects.forEach(x => S.put(Object.assign({}, x)));
+      lessons.forEach(x => L.put(Object.assign({}, x)));
+      docs.forEach(c => C.put(Object.assign({}, c, { id: c.kind + ':' + c.subjectId })));
+      await done(t);
+    } else {
+      /* الإضافة: معرّفات جديدة للمواد، ثم تُربط بها الدروس والوثائق */
       const map = {};
-      (data.subjects || []).forEach(s => {
-        const old = s.id; const copy = Object.assign({}, s);
-        if (mode !== 'replace') delete copy.id;
+      const t = d.transaction(['subjects'], 'readwrite');
+      const S = t.objectStore('subjects');
+      subjects.forEach(x => {
+        const old = x.id; const copy = Object.assign({}, x);
+        delete copy.id;
         const rq = S.put(copy);
         rq.onsuccess = () => { map[old] = rq.result; };
       });
-      t.oncomplete = async () => {
-        /* الدروس والوثائق بعد معرفة معرّفات المواد الجديدة */
-        const d2 = await dbOpen();
-        const t2 = d2.transaction(['lessons', 'docs'], 'readwrite');
-        (data.lessons || []).forEach(l => {
-          const copy = Object.assign({}, l);
-          copy.subjectId = map[l.subjectId] != null ? map[l.subjectId] : l.subjectId;
-          if (mode !== 'replace') delete copy.id;
-          t2.objectStore('lessons').put(copy);
-        });
-        (data.docs || []).forEach(c => {
-          const sid = map[c.subjectId] != null ? map[c.subjectId] : c.subjectId;
-          t2.objectStore('docs').put(Object.assign({}, c, { id: c.kind + ':' + sid, subjectId: sid }));
-        });
-        t2.oncomplete = async () => {
-          if (data.identity) await DB.set('identity', data.identity);
-          if (data.teacher) await DB.set('teacher', data.teacher);
-          res(true);
-        };
-        t2.onerror = () => rej(t2.error);
-      };
-      t.onerror = () => rej(t.error);
-    });
+      await done(t);
+      const t2 = d.transaction(['lessons', 'docs'], 'readwrite');
+      lessons.forEach(l => {
+        const copy = Object.assign({}, l);
+        copy.subjectId = map[l.subjectId] != null ? map[l.subjectId] : l.subjectId;
+        delete copy.id;
+        t2.objectStore('lessons').put(copy);
+      });
+      docs.forEach(c => {
+        const sid = map[c.subjectId] != null ? map[c.subjectId] : c.subjectId;
+        t2.objectStore('docs').put(Object.assign({}, c, { id: c.kind + ':' + sid, subjectId: sid }));
+      });
+      await done(t2);
+    }
+    if (data.identity && typeof data.identity === 'object') await DB.set('identity', normalizeIdentity(data.identity));
+    if (typeof data.teacher === 'string') await DB.set('teacher', data.teacher);
+    return true;
   }
 };
 
@@ -323,6 +337,73 @@ const IDENTITY_DEFAULT = {
 };
 
 /* =========================================================================
+   هوية وثائق الجودة — لكل وثيقة اسمها ورقمها وإصدارها مستقلّة
+
+   بيانات الجهة (الاسم · الإدارة العامة · الشعار) مشتركة، أما بيانات الوثيقة
+   نفسها فتختلف: التحضير النظري وثيقة، والتدريب العملي وثيقة، والخطة الزمنية
+   وثيقة ثالثة. تُعدَّل كلها من الإعدادات وتُطبع في تذييل كل ورقة وفي ملف Word.
+   ========================================================================= */
+const DOC_KINDS = [
+  { k: 'prep', label: 'تحضير الدرس النظري' },
+  { k: 'prac', label: 'تحضير التدريب العملي' },
+  { k: 'plan', label: 'الخطة الزمنية' }
+];
+const DOC_ID_FIELDS = [
+  { k: 'docName',   l: 'اسم الوثيقة', full: true },
+  { k: 'dept2',     l: 'الإدارة المُصدِرة', full: true },
+  { k: 'formCode',  l: 'رقم / كود الوثيقة' },
+  { k: 'issueDate', l: 'تاريخ الإصدار' },
+  { k: 'edition',   l: 'الإصدار' },
+  { k: 'revision',  l: 'التعديل' }
+];
+const DOC_DEFAULTS = {
+  prep: { docName: 'نموذج تحضير درس نظري',  dept2: 'إدارة التعليم النظري',
+          formCode: 'F-TH-04', edition: '١', revision: '٠', issueDate: '٢٠٢٤/١/١' },
+  prac: { docName: 'نموذج تحضير تدريب عملي', dept2: 'إدارة التدريب العملي',
+          formCode: 'F-PR-03', edition: '١', revision: '٠', issueDate: '٢٠٢٤/١/١' },
+  plan: { docName: 'نموذج الخطة الزمنية',     dept2: 'إدارة التعليم النظري',
+          formCode: 'F-TH-04', edition: '١', revision: '٠', issueDate: '٢٠٢٤/١/١' }
+};
+
+/* الشعار يُقبل صورةً فقط (data:image/…) — يمنع ملف نسخة متلاعَبًا به من حقن كود */
+const SAFE_LOGO = /^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=\s]+$/;
+const SAFE_COLOR = /^#[0-9a-f]{3,8}$/i;
+
+/** يبني هوية كاملة سليمة من أي مصدر (إعدادات قديمة · نسخة احتياطية · افتراضي) */
+function normalizeIdentity(raw) {
+  raw = (raw && typeof raw === 'object') ? raw : {};
+  const id = Object.assign({}, IDENTITY_DEFAULT, raw);
+  Object.keys(IDENTITY_DEFAULT).forEach(k => {
+    if (k !== 'logo' && typeof id[k] !== 'string') id[k] = IDENTITY_DEFAULT[k];
+  });
+  if (typeof id.logo !== 'string' || !SAFE_LOGO.test(id.logo)) id.logo = '';
+  ['navy', 'navyDark', 'red'].forEach(k => { if (!SAFE_COLOR.test(id[k])) id[k] = IDENTITY_DEFAULT[k]; });
+
+  const src = (raw.docs && typeof raw.docs === 'object') ? raw.docs : null;
+  const pick = (o, k) => (o && typeof o[k] === 'string') ? o[k] : undefined;
+  id.docs = {};
+  DOC_KINDS.forEach(({ k }) => {
+    const d = Object.assign({}, DOC_DEFAULTS[k]);
+    if (src) {
+      DOC_ID_FIELDS.forEach(f => { const v = pick(src[k], f.k); if (v !== undefined) d[f.k] = v; });
+    } else {
+      /* ترحيل من الإصدار القديم: هوية واحدة كانت تُطبع على النظري والخطة،
+         والعملي كان يغيّر الإدارة ورقم النموذج فقط — نحافظ على ما كان يُطبع بالضبط */
+      ['edition', 'revision', 'issueDate'].forEach(f => { const v = pick(raw, f); if (v) d[f] = v; });
+      if (k !== 'prac') ['dept2', 'formCode'].forEach(f => { const v = pick(raw, f); if (v) d[f] = v; });
+    }
+    id.docs[k] = d;
+  });
+  return id;
+}
+
+/** هوية وثيقة بعينها: بيانات الجهة + بيانات الوثيقة */
+function docId(id, kind) {
+  const base = id && id.docs ? id : normalizeIdentity(id);
+  return Object.assign({}, base, base.docs[kind] || base.docs.prep);
+}
+
+/* =========================================================================
    ستايلات الورقة — ثلاثة أشكال للنموذج المعتمد نفسه
 
    الهيكل واحد في الثلاثة: نفس الحقول وترتيبها ونفس التوقيعات ونفس رقم
@@ -447,8 +528,7 @@ const SIGNATURES = [
    منفصلة وتُرفق بعد الطباعة.
    ========================================================================= */
 
-/* الهوية تتغيّر في العملي: اسم الإدارة ورقم النموذج */
-const IDENTITY_PRAC = { dept2: 'إدارة التدريب العملي', formCode: 'F-PR-03' };
+/* هوية وثيقة العملي (الإدارة ورقم النموذج…) في DOC_DEFAULTS.prac وتُعدَّل من الإعدادات */
 
 const PRAC_FIELDS = [
   { key: 'lessonNo', label: 'رقم الموضوع', type: 'text', ph: 'مثال: ٣', remember: false, req: true },
@@ -457,8 +537,8 @@ const PRAC_FIELDS = [
   { key: 'period',   label: 'الحصة',        type: 'text', ph: 'مثال: ٣', remember: false },
   { key: 'duration', label: 'زمن التنفيذ',  type: 'text', ph: '٩٠ دقيقة', remember: true },
   { key: 'group',    label: 'المجموعة',     type: 'text', ph: 'مثال: أ', remember: true },
-  { key: 'subject',  label: 'المادة / الورشة', type: 'text', ph: 'ورشة التركيبات الكهربائية', remember: true, req: true },
-  { key: 'grade',    label: 'الصف / الفرقة', type: 'text', ph: 'الصف الأول الثانوي الصناعي', remember: true, req: true },
+  { key: 'subject',  label: 'المادة / الورشة', short: 'الورشة', type: 'text', ph: 'ورشة التركيبات الكهربائية', remember: true, req: true },
+  { key: 'grade',    label: 'الصف / الفرقة', short: 'الصف', type: 'text', ph: 'الصف الأول الثانوي الصناعي', remember: true, req: true },
   { key: 'dept',     label: 'التخصص',       type: 'text', ph: 'التركيبات الكهربائية', remember: true },
   { key: 'teacher',  label: 'اسم المدرب', short: 'المدرب', type: 'text',
     ph: 'الاسم كما يُكتب في التوقيع', remember: true },
@@ -1308,7 +1388,7 @@ function headerXml(id) {
   return xmlHead('<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
     wTable(['<w:tr>' +
       wCell(wPara(id.formCode, { b: true, size: 8.5, color: id.navy }), { w: w3 }) +
-      wCell(wPara(id.dept1, { align: 'center', size: 8.5, color: id.navy }), { w: w3 }) +
+      wCell(wPara(id.docName || id.dept1, { align: 'center', size: 8.5, b: true, color: id.navy }), { w: w3 }) +
       wCell(wPara(`إصدار (${id.edition}) | تعديل (${id.revision})`, { align: 'left', size: 8.5, color: id.navy }), { w: w3 }) +
       '</w:tr>'], { border: id.navy, grid: [w3, w3, w3] }) + '</w:hdr>');
 }
@@ -1418,21 +1498,21 @@ async function prepMedia(id, figure, wPx) {
 }
 
 async function buildDocx(data, meta, id) {
-  id = id || IDENTITY_DEFAULT;
+  id = docId(id || IDENTITY_DEFAULT, 'prep');
   CONTENT_LTR = (data && data.contentLang === 'en');
   const { logoM, figM } = await prepMedia(id, readFigure(data), 400);
   return packDocx(buildDocumentXml(data, meta, id, logoM, figM), id);
 }
 
 async function buildPracDocx(data, meta, id) {
-  const pid = Object.assign({}, id || IDENTITY_DEFAULT, IDENTITY_PRAC);
+  const pid = docId(id || IDENTITY_DEFAULT, 'prac');
   CONTENT_LTR = (data && data.contentLang === 'en');
   const { logoM, figM } = await prepMedia(pid, readFigure(data), 430);
   return packDocx(buildPracDocumentXml(data, meta, pid, logoM, figM), pid);
 }
 
 async function buildPlanDocx(p, id) {
-  id = id || IDENTITY_DEFAULT;
+  id = docId(id || IDENTITY_DEFAULT, 'plan');
   CONTENT_LTR = false;
   const { logoM } = await prepMedia(id, null);
   return packDocx(buildPlanDocumentXml(p, id, logoM), id);
@@ -1480,8 +1560,9 @@ function loadImage(src) {
 /** يحوّل قائمة الملفات إلى [{canvas, dataUrl}] */
 async function filesToPages(files, onProgress) {
   const out = [];
+  out.skipped = 0;           /* صفحات تجاوزت الحدّ — يُبلَّغ المدرّس بها بدل أن تضيع بصمت */
   for (const f of files) {
-    if (out.length >= MAX_PAGES) break;
+    if (out.length >= MAX_PAGES) { out.skipped++; continue; }
 
     if ((f.type || '').startsWith('image/')) {
       onProgress && onProgress(`تجهيز الصورة: ${f.name}`);
@@ -1497,6 +1578,7 @@ async function filesToPages(files, onProgress) {
       const buf = await f.arrayBuffer();
       const doc = await pdfjs.getDocument({ data: buf }).promise;
       const n = Math.min(doc.numPages, MAX_PAGES - out.length);
+      out.skipped += doc.numPages - n;
       for (let p = 1; p <= n; p++) {
         onProgress && onProgress(`تحويل صفحة ${p} من ${doc.numPages}…`);
         const page = await doc.getPage(p);
@@ -1855,6 +1937,12 @@ Vocabulary in Context · Think & Discuss · أسئلة التقويم · تما�
 - أعِد JSON فقط مطابقًا للمخطط، بلا أي شرح خارجه.`;
 }
 
+/* نصّ الإجابة فقط — بدون أجزاء «التفكير» إن أرجعها النموذج */
+function partsText(cand) {
+  return ((cand && cand.content && cand.content.parts) || [])
+    .filter(p => p && !p.thought).map(p => p.text || '').join('');
+}
+
 function callModel(id, apiKey, body) {
   return fetch(API_BASE + encodeURIComponent(id) + ':generateContent', {
     method: 'POST',
@@ -1877,7 +1965,9 @@ async function generateTahdeer({ apiKey, model, pages, meta, onProgress, kind })
     generationConfig: {
       temperature: 0.35,
       topP: 0.9,
-      maxOutputTokens: 8192,
+      /* نماذج Gemini 3 «تفكّر» قبل الإجابة، وتُحسب كلمات التفكير من هذا الحدّ؛
+         ٨١٩٢ كانت تقطع الدروس الطويلة في منتصف الـJSON */
+      maxOutputTokens: 32768,
       responseMimeType: 'application/json',
       responseSchema: prac ? PRAC_SCHEMA : RESPONSE_SCHEMA
     }
@@ -1913,13 +2003,16 @@ async function generateTahdeer({ apiKey, model, pages, meta, onProgress, kind })
   if (!cand) throw new Error('لم يُرجع النموذج نتيجة. جرّب صورًا أوضح أو عددًا أقل من الصفحات.');
   if (cand.finishReason === 'SAFETY') throw new Error('رفض النموذج معالجة المحتوى المرفوع.');
 
-  const text = ((cand.content && cand.content.parts) || []).map(p => p.text || '').join('');
+  const text = partsText(cand);
+  const cut = (cand.finishReason === 'MAX_TOKENS');
   let data;
   try { data = JSON.parse(text); }
   catch (_) {
     const m = text.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error('تعذّر قراءة نتيجة النموذج. أعد المحاولة.');
-    data = JSON.parse(m[0]);
+    try { data = m ? JSON.parse(m[0]) : null; } catch (__) { data = null; }
+    if (!data) throw new Error(cut
+      ? 'الدرس أطول من أن يُحضَّر مرة واحدة. ارفع صفحات أقل (نصف الدرس مثلًا) ثم حضّر الباقي كدرس تالٍ.'
+      : 'تعذّر قراءة نتيجة النموذج. أعد المحاولة، أو اختر نموذجًا آخر من الإعدادات.');
   }
   return prac ? normalizePrac(data, meta) : normalize(data);
 }
@@ -2094,7 +2187,7 @@ async function reviewTahdeer({ apiKey, model, pages, data, prac, onProgress }) {
     const body = {
       contents: [{ role: 'user', parts }],
       generationConfig: {
-        temperature: 0.1, topP: 0.8, maxOutputTokens: 4096,
+        temperature: 0.1, topP: 0.8, maxOutputTokens: 16384,
         responseMimeType: 'application/json', responseSchema: REVIEW_SCHEMA
       }
     };
@@ -2106,7 +2199,7 @@ async function reviewTahdeer({ apiKey, model, pages, data, prac, onProgress }) {
     const json = await res.json();
     const cand = json.candidates && json.candidates[0];
     if (!cand) return 0;
-    const text = ((cand.content && cand.content.parts) || []).map(x => x.text || '').join('');
+    const text = partsText(cand);
     let out;
     try { out = JSON.parse(text); }
     catch (_) { const m = text.match(/\{[\s\S]*\}/); if (!m) return 0; out = JSON.parse(m[0]); }
@@ -2675,6 +2768,7 @@ class Pager {
       '<i class="slash s1"></i><i class="slash s2"></i><i class="slash s3"></i><i class="slash s4"></i>' +
       '<div class="fmeta">' +
       svgIcon('gear', 13, 'ic') +
+      (id.docName ? `<span class="sep">|</span><b class="dn">${escHtml(id.docName)}</b>` : '') +
       `<span class="sep">|</span><span>${escHtml(id.issueDate)}</span>` +
       `<span class="sep">|</span><span>تعديل (${escHtml(id.revision)})</span>` +
       `<span class="sep">|</span><span>اصدار (${escHtml(id.edition)})</span>` +
@@ -3058,7 +3152,7 @@ function flowItems(pg, sec, items, data, opts) {
    ========================================================================= */
 function renderDocument(root, data, meta, id) {
   R_LTR = (data && data.contentLang === 'en');
-  const pg = new Pager(root, meta, id, data);
+  const pg = new Pager(root, meta, docId(id, 'prep'), data);
   const S = k => SECTIONS.find(s => s.key === k);
   const has = k => data[k] && (Array.isArray(data[k]) ? data[k].length : true);
 
@@ -3200,7 +3294,7 @@ function drawNode(data) {
 /* ---------- الدالة الرئيسية ---------- */
 function renderPractical(root, data, meta, id) {
   R_LTR = (data && data.contentLang === 'en');
-  const pgId = Object.assign({}, id, IDENTITY_PRAC);
+  const pgId = docId(id, 'prac');
   const pg = new Pager(root, meta, pgId, data, PAGER_PR);
   const S = k => PRAC_SECTIONS.find(s => s.key === k);
   const has = k => data[k] && (Array.isArray(data[k]) ? data[k].length : true);
@@ -3286,6 +3380,7 @@ function footerBar(id, plainText) {
   bot.innerHTML = barSlashes() +
     '<div class="fmeta">' +
     svgIcon('gear', 13, 'ic') +
+    (id.docName ? `<span class="sep">|</span><b class="dn">${escHtml(id.docName)}</b>` : '') +
     `<span class="sep">|</span><span>${escHtml(id.issueDate)}</span>` +
     `<span class="sep">|</span><span>تعديل (${escHtml(id.revision)})</span>` +
     `<span class="sep">|</span><span>اصدار (${escHtml(id.edition)})</span>` +
@@ -3551,6 +3646,7 @@ function planRowNode(r, i, start) {
 }
 
 function renderPlan(root, p, id) {
+  id = docId(id, 'plan');
   root.innerHTML = '';
   const meta = p.meta, rows = p.rows;
   const start = meta.startDate || '';
@@ -4167,7 +4263,7 @@ function importBackup() {
       if (r === null) return;
       await DB.importAll(data, r ? 'replace' : 'merge');
       const idn = await DB.get('identity', null);
-      if (idn) { state.id = Object.assign({}, IDENTITY_DEFAULT, idn); }
+      if (idn) { state.id = normalizeIdentity(idn); await DB.set('identity', state.id); store.set(LS.id, state.id); }
       toast('تم استيراد النسخة الاحتياطية');
       go('library');
     } catch (e) {
@@ -4275,6 +4371,7 @@ function bindDraft() {
    ========================================================================= */
 
 function renderCover(root, meta, id) {
+  id = docId(id, 'prep');
   root.innerHTML = '';
   const sheet = makeSheet(id, { cover: true, wm: 'plain' });
   const f = sheet.flow;
@@ -4360,8 +4457,14 @@ const state = {
   data: null,
   zoom: null,               /* null = ملء العرض */
   mode: 'prep',             /* prep | plan | cover */
-  id: Object.assign({}, IDENTITY_DEFAULT, store.get(LS.id, {}))
+  id: normalizeIdentity(store.get(LS.id, {}))
 };
+
+/* تاريخ اليوم بالتوقيت المحلي (toISOString يعطي تاريخ جرينتش فيتأخّر يومًا بعد منتصف الليل) */
+function todayISO() {
+  const d = new Date(), p = x => String(x).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
 
 /* ---------------- أدوات واجهة ---------------- */
 let toastT;
@@ -4398,7 +4501,7 @@ function buildForm(containerSel, fields, prefix, savedKey) {
       inp = document.createElement('input');
       inp.type = f.type; inp.placeholder = f.ph || '';
       if (f.remember && saved[f.key] != null) inp.value = saved[f.key];
-      if (f.key === 'startDate' && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
+      if (f.key === 'startDate' && !inp.value) inp.value = todayISO();
       if (f.key === 'weeks' && !inp.value) inp.value = 15;
     }
     inp.id = prefix + f.key;
@@ -4458,7 +4561,7 @@ function buildMetaForm() {
       inp = document.createElement('input');
       inp.type = f.type; inp.placeholder = f.ph || '';
       if (f.remember && saved[f.key]) inp.value = saved[f.key];
-      if (f.key === 'date' && !inp.value) inp.value = new Date().toISOString().slice(0, 10);
+      if (f.key === 'date' && !inp.value) inp.value = todayISO();
     }
     inp.id = 'm_' + f.key;
     inp.addEventListener('input', () => inp.classList.remove('err'));
@@ -4545,6 +4648,7 @@ async function generate() {
 
   try {
     state.pages = await filesToPages(state.files, m => busy(true, m));
+    const skipped = state.pages.skipped || 0;
     const data = await generateTahdeer({
       apiKey, model: currentModel(), kind: isPrac() ? 'prac' : 'prep',
       pages: state.pages, meta, onProgress: m => busy(true, m)
@@ -4571,6 +4675,13 @@ async function generate() {
     await saveLesson();
     showResult();
     await draftClear();
+    if (skipped) {
+      const msg = `تنبيه: التطبيق يقرأ أول ${toArabicDigits(MAX_PAGES)} صفحات فقط، وتجاهل ${toArabicDigits(skipped)} ` +
+        `${skipped === 1 ? 'صفحة' : 'صفحات'} زائدة. حضّر الباقي كدرس تالٍ.`;
+      setStatus(msg, true);
+      toast(msg, true);
+      return;
+    }
     toast(fixed
       ? `تم التحضير وحفظه — وصُحِّح ${toArabicDigits(fixed)} ${fixed === 1 ? 'بند' : 'بنود'} في المراجعة`
       : (isPrac() ? 'تم إنشاء تحضير التدريب العملي وحفظه' : 'تم إنشاء التحضير وحفظه في المادة'));
@@ -4584,15 +4695,20 @@ async function generate() {
 }
 
 /* ---------------- 4) العرض والتحرير ---------------- */
-function showResult() {
-  const wrap = $('#resultWrap');
-  wrap.hidden = false;
-  const n = (state.mode === 'prac')
+/* يرسم ورقة القسم الحالي (نظري أو عملي) — مصدر واحد لكل إعادات الرسم */
+function renderCurrentSheet() {
+  return (state.mode === 'prac')
     ? renderPractical($('#paper'), state.data, state.meta, state.id)
     : renderDocument($('#paper'), state.data, state.meta, state.id);
+}
+
+function showResult(noScroll) {
+  const wrap = $('#resultWrap');
+  wrap.hidden = false;
+  const n = renderCurrentSheet();
   bindEdits();
   fitPaper();
-  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!noScroll) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
   setStatus(`التحضير جاهز في ${toArabicDigits(n)} ${n === 1 ? 'صفحة' : 'صفحات'}`);
 }
 
@@ -4618,12 +4734,21 @@ function bindEdits() {
       document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text'));
     });
   });
-  /* إعادة التقسيم عند الحاجة بعد توقّف الكتابة */
+  /* إعادة التقسيم عند الحاجة بعد توقّف الكتابة — يُربط مرة واحدة فقط،
+     ويرسم نفس نوع الورقة المعروضة (كان يرسم النظري دائمًا فيقلب ورقة العملي) */
+  if (bindEdits._reflow) return;
+  bindEdits._reflow = true;
   $('#paper').addEventListener('input', () => {
+    if (!state.data || !(state.mode === 'prep' || state.mode === 'prac')) return;
     clearTimeout(reflowT);
     reflowT = setTimeout(() => {
+      if (!state.data || !(state.mode === 'prep' || state.mode === 'prac')) return;
       const over = [...$('#paper').querySelectorAll('.flow')].some(f => f.scrollHeight > f.clientHeight + 2);
-      if (over) { const n = renderDocument($('#paper'), state.data, state.meta, state.id); bindEdits(); fitPaper(); }
+      if (over) {
+        const y = window.scrollY;
+        renderCurrentSheet(); bindEdits(); fitPaper();
+        window.scrollTo({ top: y });
+      }
     }, 900);
   });
 }
@@ -4702,6 +4827,8 @@ function setMode(m, skipLoad) {
   /* أزرار شريط الأدوات حسب الوظيفة */
   document.querySelectorAll('.only-prep').forEach(e => { e.hidden = !(m === 'prep' || m === 'prac'); });
   document.querySelectorAll('.only-doc').forEach(e => { e.hidden = (m === 'cover'); });
+  const nl = $('#btnNewLbl');
+  if (nl) nl.textContent = (m === 'prac') ? 'موضوع عملي جديد' : 'تحضير درس جديد';
 
   /* كل وظيفة لها معاينتها — نُخلي الورقة عند التبديل */
   $('#paper').innerHTML = '';
@@ -4961,19 +5088,15 @@ async function printTerm() {
 }
 
 /* ---------------- 5) الإعدادات ---------------- */
+/* بيانات الجهة المشتركة — وبيانات كل وثيقة جودة في DOC_ID_FIELDS (schema) */
 const ID_FIELDS = [
   { k: 'org',       l: 'اسم الجهة' },
-  { k: 'dept1',     l: 'الإدارة العامة' },
-  { k: 'dept2',     l: 'الإدارة / القسم' },
-  { k: 'formCode',  l: 'رقم النموذج' },
-  { k: 'edition',   l: 'الإصدار' },
-  { k: 'revision',  l: 'التعديل' },
-  { k: 'issueDate', l: 'تاريخ الإصدار' }
+  { k: 'dept1',     l: 'الإدارة العامة' }
 ];
 
 function buildSettings() {
   const sel = $('#modelSel');
-  sel.innerHTML = GEMINI_MODELS.map(m => `<option value="${m.id}">${m.label}</option>`).join('');
+  sel.innerHTML = GEMINI_MODELS.map(m => `<option value="${m.id}">${escHtml(m.label)}</option>`).join('');
   sel.value = currentModel();
   $('#apiKey').value = store.get(LS.key, '');
 
@@ -4988,6 +5111,39 @@ function buildSettings() {
     lab.appendChild(i); g.appendChild(lab);
   });
 
+  /* وثيقة جودة لكل نوع: بطاقة قابلة للطيّ، وملخّصها يعرض الاسم والرقم الحاليين */
+  const box = $('#docIdBox');
+  box.innerHTML = '';
+  DOC_KINDS.forEach(({ k, label }, n) => {
+    const d = state.id.docs[k];
+    const det = document.createElement('details');
+    det.className = 'docid';
+    if (n === 0) det.open = true;
+    const sum = document.createElement('summary');
+    sum.innerHTML =
+      `<span class="di-ic">${svgIcon(k === 'plan' ? 'week' : (k === 'prac' ? 'tools' : 'pencil'), 18)}</span>` +
+      `<span class="di-tx"><b>${escHtml(label)}</b>` +
+      `<em id="di_sum_${k}">${escHtml(d.docName || '—')} · <bdi dir="ltr">${escHtml(d.formCode || '—')}</bdi></em></span>`;
+    det.appendChild(sum);
+    const grid = el('div', 'grid di-grid');
+    DOC_ID_FIELDS.forEach(f => {
+      const lab = document.createElement('label');
+      lab.className = 'field' + (f.full ? ' full' : '');
+      lab.innerHTML = `<span>${f.l}</span>`;
+      const i = document.createElement('input');
+      i.type = 'text'; i.id = `id_${k}_${f.k}`; i.value = d[f.k] || '';
+      if (f.k === 'formCode') { i.dir = 'ltr'; i.style.textAlign = 'right'; }
+      i.addEventListener('input', () => {
+        const nm = ($(`#id_${k}_docName`).value || '').trim() || '—';
+        const cd = ($(`#id_${k}_formCode`).value || '').trim() || '—';
+        $(`#di_sum_${k}`).innerHTML = `${escHtml(nm)} · <bdi dir="ltr">${escHtml(cd)}</bdi>`;
+      });
+      lab.appendChild(i); grid.appendChild(lab);
+    });
+    det.appendChild(grid);
+    box.appendChild(det);
+  });
+
   const row = $('#logoRow');
   row.className = 'logo-row';
   row.innerHTML = `<div class="prev" id="logoPrev">${state.id.logo ? `<img src="${state.id.logo}">` : svgIcon('image', 22)}</div>`;
@@ -5000,7 +5156,9 @@ function buildSettings() {
     const f = fi.files[0]; if (!f) return;
     const r = new FileReader();
     r.onload = () => {
-      state.id.logo = String(r.result);
+      const v = String(r.result);
+      if (!SAFE_LOGO.test(v)) { toast('اختر صورة PNG أو JPG للشعار', true); return; }
+      state.id.logo = v;
       $('#logoPrev').innerHTML = `<img src="${state.id.logo}">`;
     };
     r.readAsDataURL(f);
@@ -5067,12 +5225,19 @@ async function saveSettings() {
   store.set(LS.model, $('#modelSel').value);
   store.set(LS.review, $('#setReview').checked);
   ID_FIELDS.forEach(f => { state.id[f.k] = ($('#id_' + f.k).value || '').trim(); });
+  DOC_KINDS.forEach(({ k }) => {
+    DOC_ID_FIELDS.forEach(f => {
+      const e = $(`#id_${k}_${f.k}`);
+      if (e) state.id.docs[k][f.k] = (e.value || '').trim();
+    });
+  });
+  state.id = normalizeIdentity(state.id);
   store.set(LS.id, state.id);
   await DB.set('identity', state.id);
   await DB.set('teacher', ($('#setTeacher').value || '').trim());
   closeSettings();
   toast('تم حفظ الإعدادات');
-  if (state.data && Lib.screen === 'work') showResult();
+  rerenderCurrent();
 }
 
 /* ---------------- 6) التصدير ---------------- */
@@ -5088,6 +5253,7 @@ function fileBase() {
   let t;
   if (state.mode === 'plan') t = 'الخطة الزمنية - ' + (plan.meta.subject || '');
   else if (state.mode === 'cover') t = 'غلاف - ' + ((state.cover || {}).subject || '');
+  else if (state.mode === 'prac') t = 'تدريب عملي - ' + ((state.data && state.data.topicTitle) || '');
   else t = 'تحضير - ' + ((state.data && state.data.lessonTitle) || '');
   return t.replace(/[\\/:*?"<>|]/g, '-').trim().slice(0, 80);
 }
@@ -5117,14 +5283,15 @@ function newLesson() {
   metaFields().forEach(f => {
     const inp = $('#m_' + f.key);
     if (!inp || f.remember) return;
-    if (f.key === 'date') inp.value = new Date().toISOString().slice(0, 10);
+    if (f.key === 'date') inp.value = todayISO();
     else inp.value = '';
     inp.classList.remove('err');
   });
 
-  setStatus('جاهز لتحضير درس جديد — أدخل رقم الدرس وارفع صفحاته');
+  setStatus(isPrac() ? 'جاهز لتحضير موضوع عملي جديد — ارفع صفحاته'
+                     : 'جاهز لتحضير درس جديد — أدخل رقم الدرس وارفع صفحاته');
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  loadSection('prep');
+  loadSection(state.mode);
 }
 
 async function doWord() {
@@ -5138,6 +5305,14 @@ async function doWord() {
   } catch (e) {
     console.error(e); toast('تعذّر إنشاء ملف Word: ' + ((e && e.message) || e), true);
   } finally { busy(false); }
+}
+
+/* يعيد رسم المعاينة المعروضة الآن (بعد تغيير الإعدادات أو شكل الورقة) */
+function rerenderCurrent() {
+  if (Lib.screen !== 'work' || $('#resultWrap').hidden) return;
+  if ((state.mode === 'prep' || state.mode === 'prac') && state.data) showResult(true);
+  else if (state.mode === 'plan') makePlan();
+  else if (state.mode === 'cover') makeCover();
 }
 
 /* ---------------- اختيار شكل الورقة ---------------- */
@@ -5154,10 +5329,7 @@ function themeSwatch(t) {
   c.onclick = () => {
     store.set(LS.theme, t.id);
     buildThemePicker();
-    /* معاينة حيّة: نعيد رسم ما هو معروض الآن */
-    if (state.data && Lib.screen === 'work') showResult();
-    else if (Lib.screen === 'work' && state.mode === 'plan') makePlan();
-    else if (Lib.screen === 'work' && state.mode === 'cover') makeCover();
+    rerenderCurrent();
     toast('شكل الورقة: ' + t.name);
   };
   return c;
@@ -5245,6 +5417,10 @@ window.addEventListener('appinstalled', () => { $('#btnInstall').hidden = true; 
 
 /* ---------------- 8) الربط ---------------- */
 function init() {
+  /* ارتفاع الشريط العلوي الفعلي — تلتصق تحته التبويبات وشريط الأدوات */
+  const setTopH = () => document.documentElement.style.setProperty('--topbar-h', $('.topbar').offsetHeight + 'px');
+  setTopH();
+  window.addEventListener('resize', setTopH);
   buildMetaForm();
 
   const drop = $('#dropZone'), fi = $('#fileInput'), cam = $('#cameraInput');
@@ -5295,7 +5471,17 @@ function init() {
   $('#subjDlg').addEventListener('click', e => { if (e.target.id === 'subjDlg') $('#subjDlg').hidden = true; });
 
   $('#btnGenerate').onclick = generate;
-  $('#btnRegen').onclick = generate;
+  $('#btnRegen').onclick = async () => {
+    /* درس محفوظ فُتح من المكتبة: صفحات الكتاب ليست معه — نوجّه المدرّس لرفعها */
+    if (!state.files.length) {
+      toast(isPrac() ? 'لإعادة التوليد ارفع صفحات الموضوع مرة أخرى' : 'لإعادة التوليد ارفع صفحات الدرس مرة أخرى', true);
+      $('#cardFiles').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    const ok = await ask('إعادة التوليد تستبدل التحضير الحالي وأي تعديل كتبته عليه، وتستهلك طلبًا من حصتك. متابعة؟',
+      { title: 'إعادة التوليد', yes: 'أعد التوليد', danger: false });
+    if (ok === true) generate();
+  };
   $('#btnPrint').onclick = doPrint;
   $('#btnWord').onclick = doWord;
   $('#btnNew').onclick = newLesson;
@@ -5333,8 +5519,10 @@ async function boot() {
     await Backup.init();
 
     const idn = await DB.get('identity', null);
-    if (idn) state.id = Object.assign({}, IDENTITY_DEFAULT, idn);
-    else await DB.set('identity', state.id);
+    if (idn) state.id = normalizeIdentity(idn);
+    /* يُحفَظ دائمًا: يكتب صيغة الهوية الجديدة (وثيقة لكل نوع) بعد الترحيل */
+    await DB.set('identity', state.id);
+    store.set(LS.id, state.id);
 
     await migrateLegacy();
     await go('library');

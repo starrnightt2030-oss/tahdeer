@@ -991,3 +991,57 @@ table.tbl.pl tr.off td.off-cell{ font-weight:800; letter-spacing:.2px; color:var
 .page table.tbl.pl.stretch tbody td{
   padding-block: calc(var(--pl-base, .8mm) + var(--pl-extra, 0px) / 2);
   vertical-align:middle }
+
+/* =========================================================================
+   تحسينات الإصدار ١٧
+   ========================================================================= */
+
+/* تذييل الورقة: اسم وثيقة الجودة بجوار رقمها — سطر واحد دائمًا */
+.pg-bot .fmeta{ white-space:nowrap; gap:3mm }
+.pg-bot .fmeta .dn{ font-weight:800 }
+.page.t-compact .pg-bot .fmeta{ gap:2.2mm }
+
+/* التبويبات تلتصق تحت الشريط العلوي لا خلفه، وتتّسع للأربعة على الهاتف */
+.tabs{ top:var(--topbar-h, 64px) }
+@media (max-width:520px){
+  .tabs{ top:var(--topbar-h, 58px); padding:6px 6px 0; gap:2px; overflow-x:visible }
+  .tabs .tab{ flex:1 1 0; min-width:0; padding:10px 2px 11px; font-size:13px }
+}
+
+/* شريط أدوات المعاينة: صفوف متساوية بدل أزرار متناثرة */
+.toolbar{ flex-direction:column; flex-wrap:nowrap; align-items:stretch; top:calc(var(--topbar-h, 64px) + 8px) }
+.toolbar .tb-row{ display:flex; gap:8px; align-items:center }
+.toolbar .tb-row > button{ flex:1 1 0; min-width:0; display:inline-flex; align-items:center;
+  justify-content:center; gap:7px; white-space:nowrap }
+.toolbar .tb-row:not(:has(> :not([hidden]))){ display:none }
+.toolbar .tb-foot{ justify-content:space-between; flex-wrap:wrap; row-gap:6px }
+.toolbar .tb-foot .hint-edit{ flex:1 1 220px; text-align:start; margin:0 }
+.zoombar{ margin-inline-start:0; flex:0 0 auto }
+.zoombar .lvl{ white-space:nowrap; min-width:84px }
+@media (max-width:520px){
+  /* على الهاتف لا يلتصق الشريط: كان يغطّي نصف الشاشة فوق الورقة */
+  .toolbar{ position:static; padding:9px; gap:7px }
+  .toolbar .tb-row > button{ padding:10px 8px; font-size:14px }
+  .toolbar .tb-foot{ justify-content:center }
+  .toolbar .tb-foot .hint-edit{ flex-basis:100%; text-align:center; font-size:11px }
+}
+
+/* وثائق الجودة في الإعدادات */
+.docid-box{ display:flex; flex-direction:column; gap:8px }
+.docid{ background:#fff; border:1.5px solid var(--line); border-radius:14px; overflow:hidden }
+.docid[open]{ border-color:#C6D3EA; box-shadow:var(--sh) }
+.docid > summary{ list-style:none; display:flex; align-items:center; gap:10px; padding:11px 12px;
+  cursor:pointer; user-select:none }
+.docid > summary::-webkit-details-marker{ display:none }
+.docid > summary::after{ content:''; width:8px; height:8px; margin-inline-start:auto; flex:0 0 auto;
+  border-right:2px solid var(--mut); border-bottom:2px solid var(--mut);
+  transform:rotate(45deg); transition:transform .18s; margin-top:-4px }
+.docid[open] > summary::after{ transform:rotate(-135deg); margin-top:4px }
+.docid .di-ic{ width:34px; height:34px; border-radius:10px; background:var(--tint, #EDF2FB); color:var(--navy);
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto }
+.docid .di-tx{ display:flex; flex-direction:column; min-width:0 }
+.docid .di-tx b{ font-size:14px; color:var(--navy); font-weight:800 }
+.docid .di-tx em{ font-style:normal; font-size:12px; color:var(--mut); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis }
+.docid .di-grid{ padding:2px 12px 12px; grid-template-columns:1fr 1fr }
+.docid .di-grid .field.full{ grid-column:1 / -1; margin-top:0 }
