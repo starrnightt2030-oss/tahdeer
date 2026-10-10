@@ -161,20 +161,24 @@
 <!-- ======================= الخطة الزمنية ======================= -->
 <div id="modePlan" hidden>
   <section class="card">
-    <div class="card-head"><span class="num">1</span><h2>بيانات الخطة</h2></div>
+    <div class="seg" id="planKindSeg" role="tablist" aria-label="نوع الخطة">
+      <button type="button" data-k="th" class="on">خطة النظري</button>
+      <button type="button" data-k="pr">خطة العملي</button>
+    </div>
+    <div class="card-head"><span class="num">1</span><h2 id="planMetaTitle">بيانات خطة النظري</h2></div>
     <div class="grid" id="planGrid"></div>
   </section>
 
   <section class="card">
     <div class="card-head"><span class="num">2</span><h2>محتوى الأسابيع</h2></div>
-    <p class="note">التاريخ يُحسب تلقائيًا (سبت كل أسبوع) من تاريخ بداية الدراسة، ويمكن تعديله في المعاينة قبل الطباعة.</p>
+    <p class="note">التاريخ يُحسب تلقائيًا (سبت كل أسبوع) من تاريخ بداية الدراسة، ويمكن تعديله في المعاينة قبل الطباعة. خطة العملي الجديدة تبدأ بنفس أسابيع خطة النظري وامتحاناتها.</p>
     <div id="planRows" class="wk-list"></div>
   </section>
 
   <section class="card generate">
     <button id="btnPlan" class="primary big">
       <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 4h18v3H3zm0 5h4v4H3zm6 0h6v4H9zm8 0h4v4h-4zM3 15h4v4H3zm6 0h6v4H9zm8 0h4v4h-4z"/></svg>
-      تجهيز الخطة الزمنية
+      <span id="btnPlanLbl">تجهيز الخطة الزمنية — نظري</span>
     </button>
     <p class="status" id="planStatus"></p>
   </section>

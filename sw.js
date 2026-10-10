@@ -1,5 +1,5 @@
 /* عامل الخدمة — يجعل التطبيق يعمل بدون إنترنت بعد أول فتح */
-const CACHE = 'tahdeer-v17';
+const CACHE = 'tahdeer-v18';
 const ASSETS = [
   './', './index.html',
   './tahdeer.css', './tahdeer.js',

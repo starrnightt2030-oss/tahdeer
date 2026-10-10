@@ -64,6 +64,7 @@ const DB = {
       ls.forEach(l => t.objectStore('lessons').delete(l.id));
       t.objectStore('docs').delete('cover:' + id);
       t.objectStore('docs').delete('plan:' + id);
+      t.objectStore('docs').delete('pplan:' + id);
       t.oncomplete = res; t.onerror = () => rej(t.error);
     });
     backupSoon();
@@ -139,7 +140,7 @@ const DB = {
     if (!data || data.app !== 'tahdeer') throw new Error('الملف ليس نسخة احتياطية صالحة لهذا التطبيق.');
     const list = v => Array.isArray(v) ? v.filter(x => x && typeof x === 'object') : [];
     const subjects = list(data.subjects), lessons = list(data.lessons), docs = list(data.docs)
-      .filter(c => c.kind === 'cover' || c.kind === 'plan');
+      .filter(c => c.kind === 'cover' || c.kind === 'plan' || c.kind === 'pplan');
     if (!subjects.length && !lessons.length && !docs.length)
       throw new Error('ملف النسخة الاحتياطية فارغ — لم يُغيَّر شيء في مكتبتك.');
     const d = await dbOpen();
@@ -346,7 +347,8 @@ const IDENTITY_DEFAULT = {
 const DOC_KINDS = [
   { k: 'prep', label: 'تحضير الدرس النظري' },
   { k: 'prac', label: 'تحضير التدريب العملي' },
-  { k: 'plan', label: 'الخطة الزمنية' }
+  { k: 'plan', label: 'الخطة الزمنية — نظري' },
+  { k: 'pplan', label: 'الخطة الزمنية — عملي' }
 ];
 const DOC_ID_FIELDS = [
   { k: 'docName',   l: 'اسم الوثيقة', full: true },
@@ -361,8 +363,10 @@ const DOC_DEFAULTS = {
           formCode: 'F-TH-04', edition: '١', revision: '٠', issueDate: '٢٠٢٤/١/١' },
   prac: { docName: 'نموذج تحضير تدريب عملي', dept2: 'إدارة التدريب العملي',
           formCode: 'F-PR-03', edition: '١', revision: '٠', issueDate: '٢٠٢٤/١/١' },
-  plan: { docName: 'نموذج الخطة الزمنية',     dept2: 'إدارة التعليم النظري',
-          formCode: 'F-TH-04', edition: '١', revision: '٠', issueDate: '٢٠٢٤/١/١' }
+  plan: { docName: 'نموذج الخطة الزمنية للتعليم النظري', dept2: 'إدارة التعليم النظري',
+          formCode: 'F-TH-04', edition: '١', revision: '٠', issueDate: '٢٠٢٤/١/١' },
+  pplan: { docName: 'نموذج الخطة الزمنية للتدريب العملي', dept2: 'إدارة التدريب العملي',
+          formCode: 'F-PR-03', edition: '١', revision: '٠', issueDate: '٢٠٢٤/١/١' }
 };
 
 /* الشعار يُقبل صورةً فقط (data:image/…) — يمنع ملف نسخة متلاعَبًا به من حقن كود */
@@ -384,13 +388,17 @@ function normalizeIdentity(raw) {
   id.docs = {};
   DOC_KINDS.forEach(({ k }) => {
     const d = Object.assign({}, DOC_DEFAULTS[k]);
-    if (src) {
+    if (src && src[k]) {
       DOC_ID_FIELDS.forEach(f => { const v = pick(src[k], f.k); if (v !== undefined) d[f.k] = v; });
+    } else if (src) {
+      /* نوع وثيقة جديد لم يكن في النسخة المحفوظة (خطة العملي): يأخذ بيانات إصدار العملي */
+      const from = src[k === 'pplan' ? 'prac' : 'prep'];
+      ['edition', 'revision', 'issueDate'].forEach(f => { const v = pick(from, f); if (v) d[f] = v; });
     } else {
       /* ترحيل من الإصدار القديم: هوية واحدة كانت تُطبع على النظري والخطة،
          والعملي كان يغيّر الإدارة ورقم النموذج فقط — نحافظ على ما كان يُطبع بالضبط */
       ['edition', 'revision', 'issueDate'].forEach(f => { const v = pick(raw, f); if (v) d[f] = v; });
-      if (k !== 'prac') ['dept2', 'formCode'].forEach(f => { const v = pick(raw, f); if (v) d[f] = v; });
+      if (k === 'prep' || k === 'plan') ['dept2', 'formCode'].forEach(f => { const v = pick(raw, f); if (v) d[f] = v; });
     }
     id.docs[k] = d;
   });
@@ -656,6 +664,26 @@ const PLAN_SIGNATURES = [
   { label: 'مدير إدارة جودة وتكنولوجيا التعليم' },
   { label: 'المدير العام لمركز التدريب' }
 ];
+
+/* توقيعات خطة التدريب العملي — نفس جهات اعتماد تحضير العملي */
+const PLAN_SIGNATURES_PR = [
+  { label: 'المدرب', nameFrom: 'teacher' },
+  { label: 'رئيس قسم متابعة التدريب العملي' },
+  { label: 'مدير إدارة التدريب العملي' },
+  { label: 'مدير إدارة جودة وتكنولوجيا التعليم' },
+  { label: 'المدير العام لمركز التدريب' }
+];
+
+/* نوعا الخطة الزمنية: لكل مادة خطة للنظري وخطة للعملي، ولكل منهما وثيقة جودة.
+   store = مفتاح الحفظ في المكتبة (الخطة النظرية تبقى 'plan' توافقًا مع المحفوظ) */
+const PLAN_KINDS = {
+  th: { k: 'th', doc: 'plan',  store: 'plan',  short: 'نظري', title: 'الخطة الزمنية',
+        long: 'الخطة الزمنية — نظري', sigs: PLAN_SIGNATURES, teacher: 'المدرس' },
+  pr: { k: 'pr', doc: 'pplan', store: 'pplan', short: 'عملي', title: 'خطة التدريب العملي',
+        long: 'الخطة الزمنية — عملي', sigs: PLAN_SIGNATURES_PR, teacher: 'المدرب' }
+};
+const planKind = p => (p && (p === 'pr' || p.kind === 'pr')) ? PLAN_KINDS.pr : PLAN_KINDS.th;
+
 
 /* ---------- حقول غلاف المادة ---------- */
 const COVER_FIELDS = [
@@ -1312,11 +1340,12 @@ function buildPlanDocumentXml(p, id, logoM) {
   const grid = PLAN_COLUMNS.map(c => Math.round(CONTENT_W * c.w / total));
   let b = '';
 
-  b += sheetHead(id, 'الخطة الزمنية', (meta.term || '') + '   ·   ' + (meta.year || ''), logoM);
+  const PK = planKind(p);
+  b += sheetHead(id, PK.title, (meta.term || '') + '   ·   ' + (meta.year || ''), logoM);
   b += titleBar('المادة:', meta.subject || '', id) + gap(80);
 
   /* شريط البيانات — نفس .pl-meta */
-  const info = [['الصف', meta.grade], ['القسم', meta.dept], ['المدرس', meta.teacher]];
+  const info = [['الصف', meta.grade], ['القسم', meta.dept], [PK.teacher, meta.teacher]];
   const cw = Math.floor(CONTENT_W / 9), vw = Math.floor(CONTENT_W / 3) - cw;
   b += wTable(['<w:tr>' + info.map(x =>
     wCell(wPara(x[0], { b: true, size: 9, color: navy, align: 'center' }), { w: cw, shade: '#EDF1F9' }) +
@@ -1361,7 +1390,7 @@ function buildPlanDocumentXml(p, id, logoM) {
   });
   b += wTable([hr, ...rows], { grid, border: navy }) + gap(160);
 
-  b += signsX(PLAN_SIGNATURES, meta, id);
+  b += signsX(PK.sigs, meta, id);
 
   return docBody(b);
 }
@@ -1512,7 +1541,7 @@ async function buildPracDocx(data, meta, id) {
 }
 
 async function buildPlanDocx(p, id) {
-  id = docId(id || IDENTITY_DEFAULT, 'plan');
+  id = docId(id || IDENTITY_DEFAULT, planKind(p).doc);
   CONTENT_LTR = false;
   const { logoM } = await prepMedia(id, null);
   return packDocx(buildPlanDocumentXml(p, id, logoM), id);
@@ -3457,6 +3486,7 @@ function signRow(list, meta) {
    ========================================================================= */
 
 const plan = {
+  kind: 'th',       /* th = نظري · pr = عملي */
   meta: {},
   rows: []          /* [{ unit, notes, items:[{name, desc}] }] */
 };
@@ -3646,7 +3676,8 @@ function planRowNode(r, i, start) {
 }
 
 function renderPlan(root, p, id) {
-  id = docId(id, 'plan');
+  const PK = planKind(p);
+  id = docId(id, PK.doc);
   root.innerHTML = '';
   const meta = p.meta, rows = p.rows;
   const start = meta.startDate || '';
@@ -3657,13 +3688,13 @@ function renderPlan(root, p, id) {
     sheet = makeSheet(id, {
       wm: null,
       /* الاسم الطويل كان يلتفّ ثلاثة أسطر فيأكل ارتفاع الورقة — المادة في شريط البيانات */
-      title: 'الخطة الزمنية',
+      title: PK.title,
       subtitle: null
     });
     root.appendChild(sheet.page);
     pages.push(sheet.page);
     /* سطر البيانات فوق الجدول في الصفحة الأولى */
-    if (pages.length === 1) sheet.flow.appendChild(planMetaStrip(meta));
+    if (pages.length === 1) sheet.flow.appendChild(planMetaStrip(meta, PK));
     table = planTableHead();
     tbody = table.querySelector('tbody');
     sheet.flow.appendChild(table);
@@ -3683,7 +3714,7 @@ function renderPlan(root, p, id) {
   }
 
   /* التوقيعات في نهاية الخطة */
-  const sg = signRow(PLAN_SIGNATURES, meta);
+  const sg = signRow(PK.sigs, meta);
   sheet.flow.appendChild(sg);
   if (overflowing()) { sheet.flow.removeChild(sg); openPage(); sheet.flow.appendChild(sg); }
 
@@ -3715,7 +3746,7 @@ function renderPlan(root, p, id) {
   return pages.length;
 }
 
-function planMetaStrip(meta) {
+function planMetaStrip(meta, PK) {
   const s = el('div', 'pl-meta');
   const cell = (lab, val) => {
     const c = el('div', 'm');
@@ -3727,7 +3758,7 @@ function planMetaStrip(meta) {
   if (meta.dept) s.appendChild(cell('القسم', meta.dept));
   s.appendChild(cell('العام الدراسي', meta.year));
   s.appendChild(cell('الفصل الدراسي', meta.term));
-  s.appendChild(cell('المدرس', meta.teacher));
+  s.appendChild(cell((PK || PLAN_KINDS.th).teacher, meta.teacher));
   return s;
 }
 
@@ -3892,7 +3923,8 @@ function bindCamera() {
 const Lib = {
   screen: 'library',
   subject: null,          /* المادة المفتوحة */
-  lessonId: null          /* الدرس المفتوح للتعديل، أو null لدرس جديد */
+  lessonId: null,         /* الدرس المفتوح للتعديل، أو null لدرس جديد */
+  planKind: 'th'          /* الخطة المفتوحة: th نظري · pr عملي */
 };
 
 /* =========================================================================
@@ -3953,6 +3985,7 @@ async function tryDo(fn, okMsg) {
 
 /* ---------------- التنقل ---------------- */
 async function go(screen, arg) {
+  if (Lib.screen === 'work' && state.mode === 'plan' && typeof planKeepDraft === 'function') planKeepDraft();
   Lib.screen = screen;
   ['Library', 'Subject', 'Work'].forEach(k => {
     const e = document.querySelector('#screen' + k);
@@ -3995,6 +4028,7 @@ async function renderLibrary() {
     const lessons = await DB.lessons(s.id);
     const cover = await DB.doc('cover', s.id);
     const plan  = await DB.doc('plan', s.id);
+    const pplan = await DB.doc('pplan', s.id);
     const card = el('div', 'subj');
     card.innerHTML =
       `<div class="sj-main">
@@ -4002,7 +4036,8 @@ async function renderLibrary() {
          <span>${escHtml(s.grade || '')}${s.dept ? ' · ' + escHtml(s.dept) : ''}</span>
          <div class="chips">
            <i class="${cover ? 'ok' : ''}">${cover ? '✓' : '—'} غلاف</i>
-           <i class="${plan ? 'ok' : ''}">${plan ? '✓' : '—'} خطة</i>
+           <i class="${plan ? 'ok' : ''}">${plan ? '✓' : '—'} خطة نظري</i>
+           <i class="${pplan ? 'ok' : ''}">${pplan ? '✓' : '—'} خطة عملي</i>
            <i class="${lessons.filter(l => (l.kind || 'prep') === 'prep').length ? 'ok' : ''}">${toArabicDigits(lessons.filter(l => (l.kind || 'prep') === 'prep').length)} نظري</i>
            <i class="${lessons.filter(l => l.kind === 'prac').length ? 'ok' : ''}">${toArabicDigits(lessons.filter(l => l.kind === 'prac').length)} عملي</i>
          </div>
@@ -4043,6 +4078,7 @@ async function renderSubject() {
 
   const cover = await DB.doc('cover', s.id);
   const plan  = await DB.doc('plan', s.id);
+  const pplan = await DB.doc('pplan', s.id);
   const lessons = await DB.lessons(s.id);
 
   const tiles = $('#subjTiles');
@@ -4075,15 +4111,16 @@ async function renderSubject() {
       if (await tryDo(() => DB.docDelete('cover', s.id), 'تم حذف الغلاف')) renderSubject();
     }));
 
-  tiles.appendChild(tile('week', 'الخطة الزمنية',
-    plan ? `جاهزة — ${toArabicDigits((plan.payload.rows || []).length)} أسبوع · اضغط لتعديلها` : 'لم تُجهَّز بعد — اضغط للتجهيز',
-    !!plan, () => openWork('plan'),
+  const planTile = (PK, doc) => tiles.appendChild(tile(PK.k === 'pr' ? 'tools' : 'week', PK.long,
+    doc ? `جاهزة — ${toArabicDigits((doc.payload.rows || []).length)} أسبوع · اضغط لتعديلها` : 'لم تُجهَّز بعد — اضغط للتجهيز',
+    !!doc, () => openWork('plan', null, PK.k),
     async () => {
-      const ok = await ask('حذف الخطة الزمنية لهذه المادة بكل أسابيعها؟',
-        { title: 'حذف الخطة الزمنية' });
+      const ok = await ask(`حذف ${PK.long} لهذه المادة بكل أسابيعها؟`, { title: 'حذف ' + PK.long });
       if (ok !== true) return;
-      if (await tryDo(() => DB.docDelete('plan', s.id), 'تم حذف الخطة')) renderSubject();
+      if (await tryDo(() => DB.docDelete(PK.store, s.id), 'تم حذف الخطة')) renderSubject();
     }));
+  planTile(PLAN_KINDS.th, plan);
+  planTile(PLAN_KINDS.pr, pplan);
 
   /* الدروس — نظري وعملي في قائمتين */
   const prepLs = lessons.filter(l => (l.kind || 'prep') === 'prep');
@@ -4125,9 +4162,9 @@ async function renderSubject() {
   if ($('#cntPrep')) $('#cntPrep').textContent = cnt(prepLs.length, 'درس', 'دروس');
   if ($('#cntPrac')) $('#cntPrac').textContent = cnt(pracLs.length, 'موضوع', 'مواضيع');
 
-  $('#btnTerm').disabled = !(cover || plan || lessons.length);
-  $('#termHint').textContent = (cover || plan || lessons.length)
-    ? 'يشمل: ' + [cover ? 'الغلاف' : null, plan ? 'الخطة الزمنية' : null,
+  $('#btnTerm').disabled = !(cover || plan || pplan || lessons.length);
+  $('#termHint').textContent = (cover || plan || pplan || lessons.length)
+    ? 'يشمل: ' + [cover ? 'الغلاف' : null, plan ? 'خطة النظري' : null, pplan ? 'خطة العملي' : null,
         cnt(prepLs.length, 'درس نظري', 'دروس نظرية') || null,
         cnt(pracLs.length, 'موضوع عملي', 'مواضيع عملية') || null]
         .filter(Boolean).join(' + ')
@@ -4808,6 +4845,7 @@ const MODE_TITLE = { prep: 'تحضير نظري وفق النموذج المعت
    الصفحات المسمّاة، فكانت ورقة الخطة العرضية تُقصّ داخل ملف الترم. */
 
 function setMode(m, skipLoad) {
+  if (state.mode === 'plan' && Lib.screen === 'work') planKeepDraft();
   state.mode = m;
   /* النظري والعملي يتشاركان نفس الواجهة (#modePrep) بحقول مختلفة */
   $('#modePrep').hidden = !(m === 'prep' || m === 'prac');
@@ -4839,8 +4877,9 @@ function setMode(m, skipLoad) {
 }
 
 /* ---------------- فتح قسم داخل المادة ---------------- */
-async function openWork(mode, lessonId) {
+async function openWork(mode, lessonId, planK) {
   Lib.lessonId = lessonId || null;
+  if (mode === 'plan') Lib.planKind = (planK === 'pr') ? 'pr' : 'th';
   await go('work');
   setMode(mode, true);
   await loadSection(mode);
@@ -4853,7 +4892,8 @@ async function openWork(mode, lessonId) {
    رقم الأسبوع وتاريخ سبته والوحدة، ويقترح عنوان الدرس المكتوب في الخطة.
    ========================================================================= */
 async function fillFromPlan(sub, doneCount) {
-  const doc = await DB.doc('plan', sub.id);
+  /* العملي يتبع خطة العملي إن وُجدت، وإلا خطة النظري كما في الإصدارات السابقة */
+  const doc = (state.mode === 'prac' && await DB.doc('pplan', sub.id)) || await DB.doc('plan', sub.id);
   if (!doc || !doc.payload) return;
 
   const pm = doc.payload.meta || {};
@@ -4919,16 +4959,33 @@ async function loadSection(mode) {
   }
 
   if (mode === 'plan') {
-    const doc = await DB.doc('plan', sub.id);
+    const PK = planKind(Lib.planKind);
+    plan.kind = PK.k;
+    planKindUI();
+    const doc = await DB.doc(PK.store, sub.id);
+    const draft = planDrafts[PK.k + ':' + sub.id];
+    /* خطة العملي الجديدة تبدأ من بيانات خطة النظري (البداية · الأسابيع · أسابيع الامتحانات)
+       بلا أسماء دروس — الجدول الدراسي واحد والمحتوى مختلف */
+    const other = (!doc && !draft) ? await DB.doc(PK.k === 'pr' ? 'plan' : 'pplan', sub.id) : null;
     const base = { subject: sub.name, grade: sub.grade, dept: sub.dept, teacher,
       year: sub.year, term: sub.term };
-    const m = doc ? Object.assign({}, base, doc.payload.meta) : base;
-    PLAN_FIELDS.forEach(f => { const e = $('#p_' + f.key); if (e && m[f.key]) e.value = m[f.key]; });
+    const om = other ? other.payload.meta || {} : {};
+    const m = Object.assign({}, base,
+      other ? { startDate: om.startDate, weeks: om.weeks, year: om.year || sub.year, term: om.term || sub.term } : {},
+      draft ? draft.meta : (doc ? doc.payload.meta : {}));
+    PLAN_FIELDS.forEach(f => { const e = $('#p_' + f.key); if (e) e.value = (m[f.key] != null && m[f.key] !== '') ? m[f.key] : e.value; });
     plan.meta = readForm(PLAN_FIELDS, '#p_', null);
-    plan.rows = (doc && doc.payload.rows) ? doc.payload.rows : plan.rows;
+    if (draft) plan.rows = draft.rows;
+    else if (doc && doc.payload.rows) plan.rows = doc.payload.rows;
+    else if (other && other.payload.rows) plan.rows = other.payload.rows.map(r => ({
+      unit: '', notes: r.off ? (r.notes || '') : '', items: [{ name: '', desc: '' }],
+      off: !!r.off, offReason: r.off ? (r.offReason || '') : '' }));
+    else plan.rows = [];
     planEnsureRows(plan.meta.weeks);
     planRenderEditor();
-    if (doc) makePlan();
+    plan.dirty = !!draft;
+    $('#planStatus').textContent = ''; $('#planStatus').className = 'status';
+    if (doc && !draft) makePlan(true);
   }
 
   if (mode === 'cover') {
@@ -4980,7 +5037,28 @@ function buildPlanUI() {
   });
 }
 
-function makePlan() {
+/* مسودّات الخطتين أثناء الجلسة — التبديل بين النظري والعملي لا يضيّع ما كُتب */
+const planDrafts = {};
+function planKeepDraft() {
+  /* تُحفَظ مسودة فقط إن عدّل المدرّس شيئًا لم يُجهَّز بعد — وإلا تبقى النسخة المحفوظة هي المرجع */
+  if (!Lib.subject || !plan.dirty) return;
+  plan.meta = readForm(PLAN_FIELDS, '#p_', null);
+  planDrafts[plan.kind + ':' + Lib.subject.id] = { meta: Object.assign({}, plan.meta), rows: plan.rows };
+}
+
+/* زرّا اختيار نوع الخطة + عناوين القسم */
+function planKindUI() {
+  const PK = planKind(plan.kind);
+  document.querySelectorAll('#planKindSeg button').forEach(b => b.classList.toggle('on', b.dataset.k === PK.k));
+  const t = $('#planMetaTitle'); if (t) t.textContent = 'بيانات خطة ' + (PK.k === 'pr' ? 'العملي' : 'النظري');
+  const btn = $('#btnPlanLbl'); if (btn) btn.textContent = 'تجهيز ' + PK.long;
+  const lab = document.querySelector('#p_teacher') && document.querySelector('#p_teacher').previousElementSibling;
+  if (lab) lab.innerHTML = (PK.k === 'pr' ? 'اسم المدرب' : 'اسم المدرس') + ' <em>(اختياري)</em>';
+  MODE_TITLE.plan = PK.long;
+  if (typeof setTopbar === 'function' && Lib.screen === 'work') setTopbar();
+}
+
+function makePlan(quiet) {
   plan.meta = readForm(PLAN_FIELDS, '#p_', LS.plan);
   const st = $('#planStatus');
   if (!validateForm(PLAN_FIELDS, '#p_', plan.meta)) {
@@ -4997,10 +5075,15 @@ function makePlan() {
   const n = renderPlan($('#paper'), plan, state.id);
   bindPlainEdits();
   fitPaper();
-  $('#resultWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  st.textContent = `الخطة جاهزة في ${toArabicDigits(n)} ${n === 1 ? 'صفحة' : 'صفحات'}`;
+  if (quiet !== true) $('#resultWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const PK = planKind(plan.kind);
+  st.textContent = `${PK.long} جاهزة في ${toArabicDigits(n)} ${n === 1 ? 'صفحة' : 'صفحات'}`;
   st.className = 'status';
-  if (Lib.subject) { DB.docSave('plan', Lib.subject.id, { meta: plan.meta, rows: plan.rows }).then(renderBackupBar); }
+  plan.dirty = false;
+  if (Lib.subject) {
+    delete planDrafts[PK.k + ':' + Lib.subject.id];
+    if (quiet !== true) DB.docSave(PK.store, Lib.subject.id, { kind: PK.k, meta: plan.meta, rows: plan.rows }).then(renderBackupBar);
+  }
 }
 
 /* ---------- غلاف المادة ---------- */
@@ -5040,8 +5123,8 @@ async function printTerm() {
   if (!sub) return;
   busy(true, 'جارٍ تجهيز ملف الترم…');
   try {
-    const [cover, planDoc, lessons] = await Promise.all([
-      DB.doc('cover', sub.id), DB.doc('plan', sub.id), DB.lessons(sub.id)
+    const [cover, planDoc, pplanDoc, lessons] = await Promise.all([
+      DB.doc('cover', sub.id), DB.doc('plan', sub.id), DB.doc('pplan', sub.id), DB.lessons(sub.id)
     ]);
     const teacher = await DB.get('teacher', '');
     const paper = $('#paper');
@@ -5060,20 +5143,23 @@ async function printTerm() {
       renderCover(tmp, cover.payload, state.id);
       while (tmp.firstChild) paper.appendChild(tmp.firstChild);
     }
-    if (planDoc) {
-      const pm = Object.assign({ teacher }, planDoc.payload.meta || {});
-      renderPlan(tmp, { meta: pm, rows: planDoc.payload.rows || [] }, state.id);
-      while (tmp.firstChild) paper.appendChild(tmp.firstChild);
-    }
-    /* الدروس النظرية أولًا ثم مواضيع التدريب العملي */
-    const ordered = lessons.slice().sort((a, b) =>
-      ((a.kind || 'prep') === (b.kind || 'prep')) ? 0 : ((a.kind || 'prep') === 'prep' ? -1 : 1));
-    for (const les of ordered) {
-      const meta = Object.assign({ teacher }, les.meta || {});
-      if ((les.kind || 'prep') === 'prac') renderPractical(tmp, les.data, meta, state.id);
-      else renderDocument(tmp, les.data, meta, state.id);
-      while (tmp.firstChild) paper.appendChild(tmp.firstChild);
-    }
+    const move = () => { while (tmp.firstChild) paper.appendChild(tmp.firstChild); };
+    const putPlan = (doc, k) => {
+      if (!doc) return;
+      const pm = Object.assign({ teacher }, doc.payload.meta || {});
+      renderPlan(tmp, { kind: k, meta: pm, rows: doc.payload.rows || [] }, state.id);
+      move();
+    };
+    /* ترتيب الدفتر: الغلاف ← خطة النظري ← دروسه ← خطة العملي ← مواضيعه،
+       وكل مجموعة مرتّبة برقم الدرس */
+    const num = l => parseInt(String(l.lessonNo || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)), 10) || 9999;
+    const byNo = (a, b) => (num(a) - num(b)) || ((a.id || 0) - (b.id || 0));
+    const prepLs = lessons.filter(l => (l.kind || 'prep') === 'prep').sort(byNo);
+    const pracLs = lessons.filter(l => l.kind === 'prac').sort(byNo);
+    putPlan(planDoc, 'th');
+    for (const les of prepLs) { renderDocument(tmp, les.data, Object.assign({ teacher }, les.meta || {}), state.id); move(); }
+    putPlan(pplanDoc, 'pr');
+    for (const les of pracLs) { renderPractical(tmp, les.data, Object.assign({ teacher }, les.meta || {}), state.id); move(); }
 
     tmp.remove();
     const n = paper.querySelectorAll('.page').length;
@@ -5121,7 +5207,7 @@ function buildSettings() {
     if (n === 0) det.open = true;
     const sum = document.createElement('summary');
     sum.innerHTML =
-      `<span class="di-ic">${svgIcon(k === 'plan' ? 'week' : (k === 'prac' ? 'tools' : 'pencil'), 18)}</span>` +
+      `<span class="di-ic">${svgIcon((k === 'plan' || k === 'pplan') ? 'week' : (k === 'prac' ? 'tools' : 'pencil'), 18)}</span>` +
       `<span class="di-tx"><b>${escHtml(label)}</b>` +
       `<em id="di_sum_${k}">${escHtml(d.docName || '—')} · <bdi dir="ltr">${escHtml(d.formCode || '—')}</bdi></em></span>`;
     det.appendChild(sum);
@@ -5251,7 +5337,7 @@ function download(blob, name) {
 
 function fileBase() {
   let t;
-  if (state.mode === 'plan') t = 'الخطة الزمنية - ' + (plan.meta.subject || '');
+  if (state.mode === 'plan') t = planKind(plan.kind).long.replace(' — ', ' ') + ' - ' + (plan.meta.subject || '');
   else if (state.mode === 'cover') t = 'غلاف - ' + ((state.cover || {}).subject || '');
   else if (state.mode === 'prac') t = 'تدريب عملي - ' + ((state.data && state.data.topicTitle) || '');
   else t = 'تحضير - ' + ((state.data && state.data.lessonTitle) || '');
@@ -5444,7 +5530,20 @@ function init() {
   document.querySelectorAll('#tabs .tab').forEach(b => {
     b.onclick = () => setMode(b.dataset.mode);
   });
-  $('#btnPlan').onclick = makePlan;
+  $('#btnPlan').onclick = () => makePlan();
+  /* أي تعديل في محرّر الخطة يجعلها «غير مُجهَّزة» حتى يُضغط زر التجهيز */
+  const markPlan = e => { if (!e.target.closest('#planKindSeg')) plan.dirty = true; };
+  $('#modePlan').addEventListener('input', markPlan);
+  $('#modePlan').addEventListener('change', markPlan);
+  $('#planRows').addEventListener('click', e => { if (e.target.closest('.wk-add,.wk-del')) plan.dirty = true; });
+  document.querySelectorAll('#planKindSeg button').forEach(b => {
+    b.onclick = () => {
+      if (b.dataset.k === plan.kind) return;
+      planKeepDraft();
+      Lib.planKind = b.dataset.k;
+      setMode('plan');
+    };
+  });
   $('#btnCover').onclick = makeCover;
 
   /* ---- المكتبة ---- */

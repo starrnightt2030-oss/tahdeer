@@ -1045,3 +1045,10 @@ table.tbl.pl tr.off td.off-cell{ font-weight:800; letter-spacing:.2px; color:var
   overflow:hidden; text-overflow:ellipsis }
 .docid .di-grid{ padding:2px 12px 12px; grid-template-columns:1fr 1fr }
 .docid .di-grid .field.full{ grid-column:1 / -1; margin-top:0 }
+
+/* اختيار نوع الخطة الزمنية: نظري / عملي */
+.seg{ display:flex; gap:4px; padding:4px; margin-bottom:14px; background:var(--tint, #EDF2FB);
+  border:1.5px solid var(--line); border-radius:13px }
+.seg button{ flex:1 1 0; padding:9px 8px; border-radius:10px; font-size:14px; font-weight:700;
+  color:var(--mut); transition:.15s }
+.seg button.on{ background:#fff; color:var(--navy); font-weight:800; box-shadow:0 1px 6px rgba(20,40,90,.12) }
